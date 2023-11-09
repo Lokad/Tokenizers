@@ -1,116 +1,116 @@
 ﻿using Xunit;
 
-namespace Lokad.Tokenizers.Tests
+namespace Lokad.Tokenizers.Tests;
+
+// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/base_vocab.rs
+public class BaseVocabTests
 {
-    public class BaseVocabTests
+    [Fact]
+    public void TestCreateObject()
     {
-        [Fact]
-        public void TestCreateObject()
+        // Given
+        var values = new Dictionary<string, long>();
+        var specialTokenMap = new SpecialTokenMap() { UnkToken = "[UNK]" };
+
+        // When
+        var baseVocab = new BaseVocab(values, specialTokenMap);
+
+        // Then
+        Assert.Equal("[UNK]", baseVocab.GetUnknownValue());
+        Assert.Equal(values, baseVocab.Values);
+        Assert.Equal(new Dictionary<string, long>(), baseVocab.SpecialValues);
+    }
+
+    [Fact]
+    public void TestCreateObjectFromFile()
+    {
+        // Given
+        var tempFilePath = CreateTempFileWithContent("hello\nworld\n[UNK]\n!");
+        var targetValues = new Dictionary<string, long>
         {
-            // Given
-            var values = new Dictionary<string, long>();
-            var specialTokenMap = new SpecialTokenMap() { UnkToken = "[UNK]" };
+            {"hello", 0},
+            {"world", 1},
+            {"[UNK]", 2},
+            {"!", 3}
+        };
 
-            // When
-            var baseVocab = new BaseVocab(values, specialTokenMap);
-
-            // Then
-            Assert.Equal("[UNK]", baseVocab.GetUnknownValue());
-            Assert.Equal(values, baseVocab.Values);
-            Assert.Equal(new Dictionary<string, long>(), baseVocab.SpecialValues);
-        }
-
-        [Fact]
-        public void TestCreateObjectFromFile()
+        var specialValues = new Dictionary<string, long>
         {
-            // Given
-            var tempFilePath = CreateTempFileWithContent("hello\nworld\n[UNK]\n!");
-            var targetValues = new Dictionary<string, long>
-            {
-                {"hello", 0},
-                {"world", 1},
-                {"[UNK]", 2},
-                {"!", 3}
-            };
+            {"[UNK]", 2}
+        };
 
-            var specialValues = new Dictionary<string, long>
-            {
-                {"[UNK]", 2}
-            };
+        // When
+        var baseVocab = FromFile(tempFilePath);
 
-            // When
-            var baseVocab = FromFile(tempFilePath);
+        // Then
+        Assert.Equal("[UNK]", baseVocab.GetUnknownValue());
+        Assert.Equal(targetValues, baseVocab.Values);
+        Assert.Equal(specialValues, baseVocab.SpecialValues);
 
-            // Then
-            Assert.Equal("[UNK]", baseVocab.GetUnknownValue());
-            Assert.Equal(targetValues, baseVocab.Values);
-            Assert.Equal(specialValues, baseVocab.SpecialValues);
+        // Cleanup
+        File.Delete(tempFilePath);
+    }
 
-            // Cleanup
-            File.Delete(tempFilePath);
-        }
+    [Fact]
+    public void TestCreateObjectFromFileWithoutUnknownToken()
+    {
+        // Given
+        var tempFilePath = CreateTempFileWithContent("hello\nworld\n!");
 
-        [Fact]
-        public void TestCreateObjectFromFileWithoutUnknownToken()
-        {
-            // Given
-            var tempFilePath = CreateTempFileWithContent("hello\nworld\n!");
+        // When & Then
+        var exception = Assert.Throws<Exception>(() => FromFile(tempFilePath));
+        Assert.Contains("Unknown token [UNK] not found", exception.Message);
 
-            // When & Then
-            var exception = Assert.Throws<Exception>(() => FromFile(tempFilePath));
-            Assert.Contains("Unknown token [UNK] not found", exception.Message);
+        // Cleanup
+        File.Delete(tempFilePath);
+    }
 
-            // Cleanup
-            File.Delete(tempFilePath);
-        }
+    [Fact]
+    public void TestEncodeTokens()
+    {
+        // Given
+        var tempFilePath = CreateTempFileWithContent("hello\nworld\n[UNK]\n!");
+        var baseVocab = FromFile(tempFilePath);
 
-        [Fact]
-        public void TestEncodeTokens()
-        {
-            // Given
-            var tempFilePath = CreateTempFileWithContent("hello\nworld\n[UNK]\n!");
-            var baseVocab = FromFile(tempFilePath);
+        // When & Then
+        Assert.Equal(0, baseVocab.TokenToId("hello"));
+        Assert.Equal(1, baseVocab.TokenToId("world"));
+        Assert.Equal(3, baseVocab.TokenToId("!"));
+        Assert.Equal(2, baseVocab.TokenToId("[UNK]"));
+        Assert.Equal(2, baseVocab.TokenToId("oov_value"));
 
-            // When & Then
-            Assert.Equal(0, baseVocab.TokenToId("hello"));
-            Assert.Equal(1, baseVocab.TokenToId("world"));
-            Assert.Equal(3, baseVocab.TokenToId("!"));
-            Assert.Equal(2, baseVocab.TokenToId("[UNK]"));
-            Assert.Equal(2, baseVocab.TokenToId("oov_value"));
+        // Cleanup
+        File.Delete(tempFilePath);
+    }
 
-            // Cleanup
-            File.Delete(tempFilePath);
-        }
+    [Fact]
+    public void TestDecodeTokens()
+    {
+        // Given
+        var tempFilePath = CreateTempFileWithContent("hello\nworld\n[UNK]\n!");
+        var baseVocab = FromFile(tempFilePath);
 
-        [Fact]
-        public void TestDecodeTokens()
-        {
-            // Given
-            var tempFilePath = CreateTempFileWithContent("hello\nworld\n[UNK]\n!");
-            var baseVocab = FromFile(tempFilePath);
+        // When & Then
+        Assert.Equal("hello", baseVocab.IdToToken(0));
+        Assert.Equal("world", baseVocab.IdToToken(1));
+        Assert.Equal("!", baseVocab.IdToToken(3));
+        Assert.Equal("[UNK]", baseVocab.IdToToken(2));
 
-            // When & Then
-            Assert.Equal("hello", baseVocab.IdToToken(0));
-            Assert.Equal("world", baseVocab.IdToToken(1));
-            Assert.Equal("!", baseVocab.IdToToken(3));
-            Assert.Equal("[UNK]", baseVocab.IdToToken(2));
+        // Cleanup
+        File.Delete(tempFilePath);
+    }
 
-            // Cleanup
-            File.Delete(tempFilePath);
-        }
+    private static string CreateTempFileWithContent(string content)
+    {
+        var tempFilePath = Path.GetTempFileName();
+        File.WriteAllText(tempFilePath, content);
+        return tempFilePath;
+    }
 
-        private static string CreateTempFileWithContent(string content)
-        {
-            var tempFilePath = Path.GetTempFileName();
-            File.WriteAllText(tempFilePath, content);
-            return tempFilePath;
-        }
+    private static BaseVocab FromFile(string filePath)
+    {
+        var values = VocabHelper.ReadFlatFile(filePath);
 
-        private static BaseVocab FromFile(string filePath)
-        {
-            var values = VocabHelper.ReadFlatFile(filePath);
-
-            return new BaseVocab(values, new SpecialTokenMap());
-        }
+        return new BaseVocab(values, new SpecialTokenMap());
     }
 }

@@ -3,6 +3,8 @@ using ProtoBuf;
 
 namespace Lokad.Tokenizers;
 
+// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/base_vocab.rs
+
 public static class VocabHelper
 {
     public static Dictionary<TValue, TKey> SwapKeyValue<TKey, TValue>(Dictionary<TKey, TValue> dictionary)
@@ -55,7 +57,7 @@ public static class VocabHelper
         return JsonSerializer.Deserialize<SpecialTokenMap>(json);
     }
 
-    public static void RegisterAsSpecialValue(string token, Dictionary<string, long> values, ref Dictionary<string, long> specialValues)
+    public static void RegisterAsSpecialValue(string token, Dictionary<string, long> values, Dictionary<string, long> specialValues)
     {
         if (!values.TryGetValue(token, out long tokenIndex))
             throw new TokenNotFoundTokenizerException($"The special value {token} could not be found in the vocabulary");
@@ -85,38 +87,38 @@ public class SpecialTokenMap
         // Register the unk_token as a special value
         if (!string.IsNullOrEmpty(UnkToken))
         {
-            VocabHelper.RegisterAsSpecialValue(UnkToken, values, ref specialValues);
+            VocabHelper.RegisterAsSpecialValue(UnkToken, values, specialValues);
         }
 
         // Register other special tokens if they are not null or empty
         if (!string.IsNullOrEmpty(PadToken))
         {
-            VocabHelper.RegisterAsSpecialValue(PadToken, values, ref specialValues);
+            VocabHelper.RegisterAsSpecialValue(PadToken, values, specialValues);
         }
 
         if (!string.IsNullOrEmpty(BosToken))
         {
-            VocabHelper.RegisterAsSpecialValue(BosToken, values, ref specialValues);
+            VocabHelper.RegisterAsSpecialValue(BosToken, values, specialValues);
         }
 
         if (!string.IsNullOrEmpty(SepToken))
         {
-            VocabHelper.RegisterAsSpecialValue(SepToken, values, ref specialValues);
+            VocabHelper.RegisterAsSpecialValue(SepToken, values, specialValues);
         }
 
         if (!string.IsNullOrEmpty(ClsToken))
         {
-            VocabHelper.RegisterAsSpecialValue(ClsToken, values, ref specialValues);
+            VocabHelper.RegisterAsSpecialValue(ClsToken, values, specialValues);
         }
 
         if (!string.IsNullOrEmpty(EosToken))
         {
-            VocabHelper.RegisterAsSpecialValue(EosToken, values, ref specialValues);
+            VocabHelper.RegisterAsSpecialValue(EosToken, values, specialValues);
         }
 
         if (!string.IsNullOrEmpty(MaskToken))
         {
-            VocabHelper.RegisterAsSpecialValue(MaskToken, values, ref specialValues);
+            VocabHelper.RegisterAsSpecialValue(MaskToken, values, specialValues);
         }
 
         // Register any additional special tokens
@@ -126,7 +128,7 @@ public class SpecialTokenMap
             {
                 if (!string.IsNullOrEmpty(token))
                 {
-                    VocabHelper.RegisterAsSpecialValue(token, values, ref specialValues);
+                    VocabHelper.RegisterAsSpecialValue(token, values, specialValues);
                 }
             }
         }
