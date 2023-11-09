@@ -60,7 +60,7 @@ public static class VocabHelper
     public static void RegisterAsSpecialValue(string token, Dictionary<string, long> values, Dictionary<string, long> specialValues)
     {
         if (!values.TryGetValue(token, out long tokenIndex))
-            throw new TokenNotFoundTokenizerException($"The special value {token} could not be found in the vocabulary");
+            throw new TokenNotFoundTokenizerException($"Unknown token {token} not found");
 
         specialValues[token] = tokenIndex;
     }
@@ -85,7 +85,7 @@ public class SpecialTokenMap
         AdditionalSpecialTokens = new HashSet<string>();
     }
 
-    public void RegisterSpecialValues(Dictionary<string, long> values, ref Dictionary<string, long> specialValues)
+    public void RegisterSpecialValues(Dictionary<string, long> values, Dictionary<string, long> specialValues)
     {
         // Register the unk_token as a special value
         if (!string.IsNullOrEmpty(UnkToken))
@@ -165,9 +165,7 @@ public class BaseVocab : IVocab
         Values = values ?? throw new ArgumentNullException(nameof(values));
         SpecialTokenMap = specialTokenMap ?? throw new ArgumentNullException(nameof(specialTokenMap));
         SpecialValues = new Dictionary<string, long>();
-        var specialValuesLocal = SpecialValues;
-        SpecialTokenMap.RegisterSpecialValues(values, ref specialValuesLocal);
-        SpecialValues = specialValuesLocal;
+        SpecialTokenMap.RegisterSpecialValues(values, SpecialValues);
         Indices = VocabHelper.SwapKeyValue(Values);
         SpecialIndices = VocabHelper.SwapKeyValue(SpecialValues);
     }

@@ -58,7 +58,7 @@ public class BaseVocabTests
         var tempFilePath = CreateTempFileWithContent("hello\nworld\n!");
 
         // When & Then
-        var exception = Assert.Throws<Exception>(() => FromFile(tempFilePath));
+        var exception = Assert.Throws<TokenNotFoundTokenizerException>(() => FromFile(tempFilePath));
         Assert.Contains("Unknown token [UNK] not found", exception.Message);
 
         // Cleanup
