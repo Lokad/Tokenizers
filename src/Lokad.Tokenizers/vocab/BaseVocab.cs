@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using Google.Protobuf; // Assuming you have a protobuf C# library for handling ModelProto
+﻿using System.Text.Json;
+using ProtoBuf; 
 
 namespace Lokad.Tokenizers;
 
@@ -38,8 +34,8 @@ public static class VocabHelper
         if (!File.Exists(path))
             throw new FileNotFoundTokenizerException($"{path} vocabulary file not found");
 
-        byte[] fileData = File.ReadAllBytes(path);
-        return ModelProto.Parser.ParseFrom(fileData);
+        using var stream = File.OpenRead(path);
+        return Serializer.Deserialize<ModelProto>(stream);
     }
 
     public static Dictionary<string, long> ReadProtobufFile(string path)

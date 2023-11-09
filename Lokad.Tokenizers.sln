@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.4.33110.190
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lokad.Tokenizers", "src\Lokad.Tokenizers\Lokad.Tokenizers.csproj", "{22CA7765-0FE5-465B-9409-3CA3F9AF42CC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lokad.Tokenizers", "src\Lokad.Tokenizers\Lokad.Tokenizers.csproj", "{22CA7765-0FE5-465B-9409-3CA3F9AF42CC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lokad.Tokenizers.Tests", "test\Lokad.Tokenizers.Tests\Lokad.Tokenizers.Tests.csproj", "{EEFD8040-DEDC-4070-B265-FE922B720928}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{22CA7765-0FE5-465B-9409-3CA3F9AF42CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{22CA7765-0FE5-465B-9409-3CA3F9AF42CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{22CA7765-0FE5-465B-9409-3CA3F9AF42CC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EEFD8040-DEDC-4070-B265-FE922B720928}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EEFD8040-DEDC-4070-B265-FE922B720928}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EEFD8040-DEDC-4070-B265-FE922B720928}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EEFD8040-DEDC-4070-B265-FE922B720928}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
