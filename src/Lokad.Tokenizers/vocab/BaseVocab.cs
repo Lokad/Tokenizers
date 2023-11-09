@@ -68,6 +68,8 @@ public static class VocabHelper
 
 public class SpecialTokenMap
 {
+    private const string DefaultUnkToken = "[UNK]";
+
     public string UnkToken { get; set; }
     public string PadToken { get; set; }
     public string BosToken { get; set; }
@@ -79,6 +81,7 @@ public class SpecialTokenMap
 
     public SpecialTokenMap()
     {
+        UnkToken = DefaultUnkToken;
         AdditionalSpecialTokens = new HashSet<string>();
     }
 
@@ -151,7 +154,6 @@ public interface IVocab
 
 public class BaseVocab : IVocab
 {
-    private const string DefaultUnkToken = "[UNK]";
     public Dictionary<string, long> Values { get; private set; }
     public Dictionary<long, string> Indices { get; private set; }
     public SpecialTokenMap SpecialTokenMap { get; private set; }
