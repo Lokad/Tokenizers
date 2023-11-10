@@ -4,6 +4,10 @@ using System.Text.RegularExpressions;
 // TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
 // TODO: unit tests not ported
 
+// Port notes:
+// - OffsetSize is ported as 'uint'
+// - Token and TokenRef have been merged as 'Token'.
+
 namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
@@ -158,7 +162,7 @@ public class Token : ITokenTrait
     /// Sequence of positions with respect to the original text contained in the token.
     /// For example, if the token offset is `start: 4, end: 10`, corresponding reference_offsets are `[4, 5, 6, 7, 8, 9]`
     /// </summary>
-    public List<uint> ReferenceOffsets { get; set; }
+    public IReadOnlyList<uint> ReferenceOffsets { get; set; }
 
     /// <summary>
     /// Mask indicating the type of the token
@@ -178,65 +182,27 @@ public class Token : ITokenTrait
         Mask = Mask.None;
     }
 
-    public string AsStr()
-    {
-        return Text;
-    }
-
-    public static Token From(TokenRef other)
-    {
-        return new Token(other.Text)
-        {
-            Offset = other.Offset,
-            ReferenceOffsets = other.ReferenceOffsets.ToList(),
-            Mask = other.Mask
-        };
-    }
-
-    public static Token From(string text)
-    {
-        return new Token(text);
-    }
-}
-
-
-/// <summary>
-/// Reference token that references the original text, with a string slice representation
-/// </summary>
-public class TokenRef
-{
     /// <summary>
-    /// String representation
-    /// </summary>
-    public string Text { get; set; }
-
-    /// <summary>
-    /// Start and end positions of the token with respect to the original text
-    /// </summary>
-    public Offset Offset { get; set; }
-
-    /// <summary>
-    /// Sequence of positions with respect to the original text contained in the token.
-    /// For example, if the token offset is `start: 4, end: 10`, corresponding reference_offsets are `[4, 5, 6, 7, 8, 9]`
-    /// </summary>
-    public uint[] ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Mask indicating the type of the token
-    /// </summary>
-    public Mask Mask { get; set; }
-
-    /// <summary>
-    /// Creates a new token reference from a text and list of offsets.
+    /// Creates a new token from a text and list of offsets.
     /// </summary>
     /// <param name="text">text reference</param>
     /// <param name="offsets">reference positions with respect to the original text</param>
-    public TokenRef(string text, uint[] offsets)
+    public Token(string text, uint[] offsets)
     {
         Text = text;
         Offset = new Offset(0, (uint)offsets.Length);
         ReferenceOffsets = offsets;
         Mask = Mask.None;
+    }
+
+    public string AsStr()
+    {
+        return Text;
+    }
+
+    public static Token From(string text)
+    {
+        return new Token(text);
     }
 }
 
@@ -352,7 +318,7 @@ public class TokensWithOffsets
     /// Offset information (as a sequence of positions) in relation to the original text. Tokens that can not be related to the
     /// original source are registered as None.
     /// </summary>
-    public List<List<uint>> ReferenceOffsets { get; set; }
+    public List<IReadOnlyList<uint>> ReferenceOffsets { get; set; }
 
     /// <summary>
     /// Masks tokens providing information on the type of tokens. This vector has the same length as token_ids.
@@ -419,7 +385,7 @@ public interface ITokenizer<T> where T : IVocab
     /// </summary>
     /// <param name="initialToken">TokenRef to tokenize (this is especially useful for nested tokenization, where a tokenizer is called on the ouput of a pre-tokenizer, such as BERT).</param>
     /// <returns>`List<Token>` tokenization of the original `TokenRef`</returns>
-    List<Token> TokenizeToTokens(TokenRef initialToken);
+    List<Token> TokenizeToTokens(Token initialToken);
 
     /// <summary>
     /// Convert a slice of string-like to a vector ot token indices
@@ -543,18 +509,18 @@ public class BaseTokenizer<T> where T : IVocab
             {
                 Tokens = new List<string>(),
                 Offsets = new List<Offset?>(),
-                ReferenceOffsets = new List<List<uint>>(),
+                ReferenceOffsets = new List<IReadOnlyList<uint>>(),
                 Masks = new List<Mask>(),
             };
         }
 
         var initialOffsets = Enumerable.Range(0, text.Length).Select(i => (uint)i).ToArray();
-        var initialToken = new TokenRef(text, initialOffsets);
+        var initialToken = new Token(text, initialOffsets);
         var tokens = TokenizeToTokens(initialToken);
         var length = tokens.Count;
         var texts = new List<string>(length);
         var offsets = new List<Offset?>(length);
-        var originalPositions = new List<List<uint>>(length);
+        var originalPositions = new List<IReadOnlyList<uint>>(length);
         var masks = new List<Mask>(length);
 
         foreach (var token in tokens)
@@ -575,11 +541,11 @@ public class BaseTokenizer<T> where T : IVocab
     }
 
     /// <summary>
-    /// Tokenize a TokenRef, returning a sequence of tokens
+    /// Tokenize a Token, returning a sequence of tokens
     /// </summary>
-    /// <param name="initialToken">TokenRef to tokenize (this is especially useful for nested tokenization, where a tokenizer is called on the ouput of a pre-tokenizer, such as BERT).</param>
-    /// <returns>`List<Token>` tokenization of the original `TokenRef`</returns>
-    public List<Token> TokenizeToTokens(TokenRef initialToken)
+    /// <param name="initialToken">Token to tokenize (this is especially useful for nested tokenization, where a tokenizer is called on the ouput of a pre-tokenizer, such as BERT).</param>
+    /// <returns>`List<Token>` tokenization of the original `Token`</returns>
+    public List<Token> TokenizeToTokens(Token initialToken)
     {
         //split on whitespace
         var tokens = WhitespaceTokenize(initialToken)
@@ -600,7 +566,7 @@ public class BaseTokenizer<T> where T : IVocab
             })
             .Select(token =>
             {
-                // v-- this is where the token gets owned, all steps above handle TokenRefs (dealing with &str)
+                // v-- this is where the token gets owned, all steps above handle Token (dealing with &str)
                 var ownedToken = new Token(token.Text)
                 {
                     Offset = token.Offset,
@@ -694,21 +660,21 @@ public class BaseTokenizer<T> where T : IVocab
             .Replace(" 're", "'re");
     }
 
-    private static List<TokenRef> WhitespaceTokenize(TokenRef initialToken)
+    private static List<Token> WhitespaceTokenize(Token initialToken)
     {
         var parts = initialToken.Text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-        var tokens = new List<TokenRef>();
+        var tokens = new List<Token>();
         foreach (var part in parts)
         {
             var offsets = initialToken.ReferenceOffsets.SkipWhile((offset, index) => char.IsWhiteSpace(initialToken.Text[index])).Take(part.Length).ToArray();
-            tokens.Add(new TokenRef(part, offsets));
+            tokens.Add(new Token(part, offsets));
         }
         return tokens;
     }
 
-    private static List<TokenRef> SplitOnSpecialTokens(TokenRef token, IVocab vocab)
+    private static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
     {
-        var tokens = new List<TokenRef>();
+        var tokens = new List<Token>();
         var text = token.Text;
         var start = 0;
         var end = 0;
@@ -720,7 +686,7 @@ public class BaseTokenizer<T> where T : IVocab
             {
                 end = start + match.Length;
                 var offsets = token.ReferenceOffsets.Skip(start).Take(match.Length).ToArray();
-                tokens.Add(new TokenRef(match, offsets) { Mask = Mask.Special });
+                tokens.Add(new Token(match, offsets) { Mask = Mask.Special });
                 start = end;
             }
             else
@@ -734,16 +700,16 @@ public class BaseTokenizer<T> where T : IVocab
                 // CONTINUED
 
                 var offsets = token.ReferenceOffsets.Skip(start).Take(end - start).ToArray();
-                tokens.Add(new TokenRef(text.Substring(start, end - start), offsets));
+                tokens.Add(new Token(text.Substring(start, end - start), offsets));
                 start = end;
             }
         }
         return tokens;
     }
 
-    private static List<TokenRef> SplitOnPunct(TokenRef token)
+    private static List<Token> SplitOnPunct(Token token)
     {
-        var tokens = new List<TokenRef>();
+        var tokens = new List<Token>();
         var text = token.Text;
         var start = 0;
         var end = 0;
@@ -753,7 +719,7 @@ public class BaseTokenizer<T> where T : IVocab
             if (char.IsPunctuation(charCurrent))
             {
                 var offsets = token.ReferenceOffsets.Skip(start).Take(1).ToArray();
-                tokens.Add(new TokenRef(text.Substring(start, 1), offsets) { Mask = Mask.Punctuation });
+                tokens.Add(new Token(text.Substring(start, 1), offsets) { Mask = Mask.Punctuation });
                 start++;
             }
             else
@@ -764,16 +730,16 @@ public class BaseTokenizer<T> where T : IVocab
                     end++;
                 }
                 var offsets = token.ReferenceOffsets.Skip(start).Take(end - start).ToArray();
-                tokens.Add(new TokenRef(text.Substring(start, end - start), offsets));
+                tokens.Add(new Token(text.Substring(start, end - start), offsets));
                 start = end;
             }
         }
         return tokens;
     }
 
-    private static List<TokenRef> TokenizeCjkChars(TokenRef token)
+    private static List<Token> TokenizeCjkChars(Token token)
     {
-        var tokens = new List<TokenRef>();
+        var tokens = new List<Token>();
         var text = token.Text;
         var start = 0;
         var end = 0;
@@ -783,7 +749,7 @@ public class BaseTokenizer<T> where T : IVocab
             if (IsCjkChar(charCurrent))
             {
                 var offsets = token.ReferenceOffsets.Skip(start).Take(1).ToArray();
-                tokens.Add(new TokenRef(text.Substring(start, 1), offsets) { Mask = Mask.CJK });
+                tokens.Add(new Token(text.Substring(start, 1), offsets) { Mask = Mask.CJK });
                 start++;
             }
             else
@@ -794,7 +760,7 @@ public class BaseTokenizer<T> where T : IVocab
                     end++;
                 }
                 var offsets = token.ReferenceOffsets.Skip(start).Take(end - start).ToArray();
-                tokens.Add(new TokenRef(text.Substring(start, end - start), offsets));
+                tokens.Add(new Token(text.Substring(start, end - start), offsets));
                 start = end;
             }
         }
