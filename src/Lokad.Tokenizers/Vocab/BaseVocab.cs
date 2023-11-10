@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using ProtoBuf; 
 
-namespace Lokad.Tokenizers;
+namespace Lokad.Tokenizers.Vocab;
 
 // TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/base_vocab.rs
 
@@ -145,6 +145,9 @@ public interface IVocab
     Dictionary<long, string> Indices { get; }
     Dictionary<string, long> SpecialValues { get; }
     Dictionary<long, string> SpecialIndices { get; }
+
+    IEnumerable<string> SpecialTokens();
+
     long TokenToId(string token);
     string IdToToken(long id);
     List<long> ConvertTokensToIds(IEnumerable<string> tokens);
@@ -171,6 +174,12 @@ public class BaseVocab : IVocab
     }
 
     public string GetUnknownValue() => SpecialTokenMap.UnkToken;
+
+    public IEnumerable<string> SpecialTokens()
+    {
+        // [vermorel] Method manually inserted, not sure about the semantic.
+        return SpecialValues.Keys;
+    }
 
     public long TokenToId(string token)
     {

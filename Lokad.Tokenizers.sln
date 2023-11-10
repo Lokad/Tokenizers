@@ -5,7 +5,12 @@ VisualStudioVersion = 17.4.33110.190
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lokad.Tokenizers", "src\Lokad.Tokenizers\Lokad.Tokenizers.csproj", "{22CA7765-0FE5-465B-9409-3CA3F9AF42CC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lokad.Tokenizers.Tests", "test\Lokad.Tokenizers.Tests\Lokad.Tokenizers.Tests.csproj", "{EEFD8040-DEDC-4070-B265-FE922B720928}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lokad.Tokenizers.Tests", "test\Lokad.Tokenizers.Tests\Lokad.Tokenizers.Tests.csproj", "{EEFD8040-DEDC-4070-B265-FE922B720928}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{FB00C9BD-059D-48F3-B167-0E58CE0012FA}"
+	ProjectSection(SolutionItems) = preProject
+		ReadMe.md = ReadMe.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

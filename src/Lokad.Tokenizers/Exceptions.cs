@@ -2,7 +2,8 @@
 
 namespace Lokad.Tokenizers;
 
-// Base class for all tokenizer exceptions
+// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/error.rs
+
 public class TokenizerException : Exception
 {
     public TokenizerException(string message) : base(message) { }
