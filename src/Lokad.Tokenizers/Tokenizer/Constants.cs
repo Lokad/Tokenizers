@@ -6,21 +6,21 @@ using System.Collections.Generic;
 
 public static class Constants
 {
-    public static readonly int[] WhitespaceChars = new int[]
+    public static readonly HashSet<uint> WhitespaceChars = new HashSet<uint>(new uint[]
     {
             // Standard whitespace characters (unicode category Zs)
             0x0020, 0x00A0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008,
             0x2009, 0x200A, 0x202F, 0x205F, 0x3000,
             // Additional characters considered whitespace for BERT (tab, newline, carriage return)
             0x0009, 0x000D, 0x00A,
-    };
+    });
 
     public static readonly char[] AdditionalWhitespaceChars = new char[]
     {
             '\t', '\n', '\r'
     };
 
-    public static readonly HashSet<int> PunctuationChars = new HashSet<int>(new int[]
+    public static readonly HashSet<uint> PunctuationChars = new HashSet<uint>(new uint[]
     {
             0x21, 0x22, 0x23, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2c, 0x2d, 0x2e, 0x2f, 0x3a,
             0x3b, 0x3f, 0x40, 0x5b, 0x5c, 0x5d, 0x5f, 0x7b, 0x7d, 0xa1, 0xa7, 0xab, 0xb6, 0xb7,
@@ -98,7 +98,7 @@ public static class Constants
             0x16e9a, 0x1bc9f, 0x1da87, 0x1da88, 0x1da89, 0x1da8a, 0x1da8b, 0x1e95e, 0x1e95f,
     });
 
-    public static readonly HashSet<int> ControlChars = new HashSet<int>(new int[]
+    public static readonly HashSet<uint> ControlChars = new HashSet<uint>(new uint[]
     {
              0x007F, 0x00AD, 0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, 0x061C, 0x06DD, 0x070F,
             0x08E2, 0x180E, 0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D,
@@ -109,7 +109,7 @@ public static class Constants
             0x1D177, 0x1D178, 0x1D179, 0x1D17A, 0xE0001,
     });
 
-    public static readonly HashSet<int> AccentMarkers = new HashSet<int>(new int[]
+    public static readonly HashSet<uint> AccentMarkers = new HashSet<uint>(new uint[]
     {
             0x0300, 0x0301, 0x0302, 0x0303, 0x0304, 0x0305, 0x0306, 0x0307, 0x0308, 0x0309, 0x030A,
             0x030B, 0x030C, 0x030D, 0x030E, 0x030F, 0x0310, 0x0311, 0x0312, 0x0313, 0x0314, 0x0315,

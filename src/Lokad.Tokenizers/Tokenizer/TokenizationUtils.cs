@@ -1,650 +1,1223 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using System.Text;
 using Lokad.Tokenizers.Vocab;
 
 namespace Lokad.Tokenizers.Tokenizer;
 
-// TODO: WIP, ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
+// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
+// TODO: unit tests not ported
 
-//public static class TokenizationUtils
-//{
-//    /// <summary>
-//    /// Cleans text by removing control characters and normalizing whitespace
-//    /// </summary>
-//    public static void CleanText(Token token, bool strict)
-//    {
-//        var cleanedString = new StringBuilder(token.Text.Length);
-//        var characterMapping = new List<uint>(token.Text.Length);
+public static class TokenizationUtils
+{
+    /// <summary>
+    /// Cleans text by removing control characters and normalizing whitespace
+    /// </summary>
+    public static void CleanText(Token token, bool strict)
+    {
+        var cleanedString = new StringBuilder(token.Text.Length);
+        var characterMapping = new List<uint>(token.Text.Length);
 
-//        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
-//        {
-//            if (IsControl(character, strict) || character == '\x00' || character == '\uFFFD')
-//            {
-//                continue;
-//            }
+        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
+        {
+            if (IsControl(character, strict) || character == '\x00' || character == '\uFFFD')
+            {
+                continue;
+            }
 
-//            cleanedString.Append(IsWhitespace(character) ? ' ' : character);
-//            characterMapping.Add(position);
-//        }
+            cleanedString.Append(IsWhitespace(character) ? ' ' : character);
+            characterMapping.Add(position);
+        }
 
-//        token.Text = cleanedString.ToString();
-//        token.ReferenceOffsets = characterMapping;
-//        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
-//    }
+        token.Text = cleanedString.ToString();
+        token.ReferenceOffsets = characterMapping;
+        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
+    }
 
-//    /// <summary>
-//    /// Replaces a pattern string by a replacement string keeping track of the offsets
-//    /// (all new characters in replacement have the same reference offset as the first pattern character as these may have a different size)
-//    /// </summary>
-//    public static void ReplaceString(Token token, string pattern, string replacementString)
-//    {
-//        var patternLen = pattern.Length;
-//        var patternCharLen = pattern.Length;
-//        var replacementCharLen = replacementString.Length;
-//        var matches = token.Text.LastIndexOf(pattern).Select(v => v).ToList();
-//        var charIndices = token.Text.Select((c, i) => new { Index = i, Character = c }).ToDictionary(x => x.Index, x => x.Character);
+    /// <summary>
+    /// Replaces a pattern string by a replacement string keeping track of the offsets
+    /// (all new characters in replacement have the same reference offset as the first pattern character as these may have a different size)
+    /// </summary>
+    public static void ReplaceString(Token token, string pattern, string replacementString)
+    {
+        int patternLen = pattern.Length;
+        int patternCharLen = pattern.ToCharArray().Length;
+        int replacementCharLen = replacementString.ToCharArray().Length;
 
-//        foreach (var hit in matches)
-//        {
-//            token.Text = token.Text.Remove(hit, patternLen).Insert(hit, replacementString);
-//            var charPosition = charIndices[hit];
-//            var referenceOffset = token.ReferenceOffsets[charPosition];
-//            token.ReferenceOffsets = token.ReferenceOffsets.Take(charPosition)
-//                .Concat(Enumerable.Repeat(referenceOffset, replacementCharLen))
-//                .Concat(token.ReferenceOffsets.Skip(charPosition + patternCharLen)).ToList();
-//        }
-//    }
+        // Find all matches from the end to the beginning
+        List<int> matches = new List<int>();
+        int index = token.Text.LastIndexOf(pattern);
+        while (index != -1)
+        {
+            matches.Add(index);
+            index = (index > 0) ? token.Text.LastIndexOf(pattern, index - 1) : -1;
+        }
 
-//    /// <summary>
-//    /// Split a text on special tokens (like BOS/EOS/UNK markers), depending on the vocabulary
-//    /// </summary>
-//    public static List<TokenRef> SplitOnSpecialTokens(TokenRef token, IVocab vocab)
-//    {
-//        bool TestSubstr(string s)
-//        {
-//            foreach (var specialValue in vocab.SpecialValues().Keys)
-//            {
-//                if (s.StartsWith(specialValue))
-//                {
-//                    return (specialValue.Length,
-//                        specialValue.Length,
-//                        vocab.GetUnknownValue() == specialValue ? Mask.Unknown : Mask.Special);
-//                }
-//            }
+        // Reverse the list to process from the end to the beginning
+        matches.Reverse();
 
-//            return (0, 0, Mask.None);
-//        }
+        // Create a dictionary of character indices
+        var charIndices = token.Text
+            .Select((c, i) => new { Char = c, Index = i })
+            .ToDictionary(ci => ci.Index, ci => ci.Char);
 
-//        return SplitOnSubstr(token, TestSubstr, true);
-//    }
+        foreach (var hit in matches)
+        {
+            token.Text = token.Text.Remove(hit, patternLen).Insert(hit, replacementString);
 
-//    /// <summary>
-//    /// Tokenizes CJK characters, each character will be a token
-//    /// </summary>
-//    public static List<TokenRef> TokenizeCjkChars(TokenRef token)
-//    {
-//        return SplitOnChar(token, IsCjkChar, true, Mask.CJK);
-//    }
+            int charPosition = charIndices[hit];
+            uint referenceOffset = token.ReferenceOffsets[charPosition];
 
-//    private static bool IsCjkChar(char character)
-//    {
-//        var u32Char = Convert.ToUInt32(character);
-//        return (0x4E00 <= u32Char && u32Char <= 0x9FFF)
-//            || (0x3400 <= u32Char && u32Char <= 0x4DBF)
-//            || (0x20000 <= u32Char && u32Char <= 0x2A6DF)
-//            || (0x2A700 <= u32Char && u32Char <= 0x2B73F)
-//            || (0x2B740 <= u32Char && u32Char <= 0x2B81F)
-//            || (0x2B820 <= u32Char && u32Char <= 0x2CEAF)
-//            || (0xF900 <= u32Char && u32Char <= 0xFAFF)
-//            || (0x2F800 <= u32Char && u32Char <= 0x2FA1F);
-//    }
+            // Update the reference offsets
+            token.ReferenceOffsets = token.ReferenceOffsets
+                .Take(charPosition)
+                .Concat(Enumerable.Repeat(referenceOffset, replacementCharLen))
+                .Concat(token.ReferenceOffsets.Skip(charPosition + patternCharLen))
+                .ToList();
+        }
+    }
 
-//    public static bool IsWhitespace(char character)
-//    {
-//        return Constants.WHITESPACE_CHARS.Contains(Convert.ToUInt32(character));
-//    }
+    /// <summary>
+    /// Split a text on special tokens (like BOS/EOS/UNK markers), depending on the vocabulary
+    /// </summary>
+    public static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
+    {
+        List<Token> result = new List<Token>();
 
-//    /// <summary>
-//    /// This is a custom method to check if a character is a control character. The BERT tokenizer is
-//    /// taking any character whose unicode category starts with `C` as a control character, which includes
-//    /// the traditional control `Cc` category, but also the format `Cc`, private use `Co` and surrogate `Cs`.
-//    /// The unassigned unicode category `Cn` has been skipped in order to avoid unnecessary checks.
-//    /// A faster method may be called by setting strict to false and only check against the core control
-//    /// characters. To match the original BERT tokenization, this should remain true.
-//    /// </summary>
-//    public static bool IsControl(char character, bool strict)
-//    {
-//        if (Constants.ADDITIONAL_WHITESPACE_CHARS.Contains(character))
-//        {
-//            return false;
-//        }
+        int currentIndex = 0;
+        while (currentIndex < token.Text.Length)
+        {
+            int matchLength = 0;
+            int matchCharCount = 0;
+            Mask matchMask = Mask.None;
 
-//        if (strict)
-//        {
-//            var u32Char = Convert.ToUInt32(character);
-//            return (u32Char <= 0x001F)
-//                || (0x0080 <= u32Char && u32Char <= 0x009F)
-//                || (0xE0020 <= u32Char && u32Char <= 0xE007F)
-//                || (0xE000 <= u32Char && u32Char <= 0xF8FF)
-//                || (0xF0000 <= u32Char && u32Char <= 0xFFFFD)
-//                || (0x100000 <= u32Char && u32Char <= 0x10FFFD)
-//                || (0xD800 <= u32Char && u32Char <= 0xDB7F)
-//                || (0xDB80 <= u32Char && u32Char <= 0xDBFF)
-//                || (0xDC00 <= u32Char && u32Char <= 0xDFFF)
-//                || Constants.CONTROL_CHARS.Contains(u32Char);
-//        }
-//        else
-//        {
-//            return char.IsControl(character);
-//        }
-//    }
+            foreach (var specialValue in vocab.SpecialValues.Keys)
+            {
+                if (token.Text.Substring(currentIndex).StartsWith(specialValue))
+                {
+                    matchLength = specialValue.Length;
+                    matchCharCount = specialValue.Length;
+                    matchMask = vocab.GetUnknownValue() == specialValue ? Mask.Unknown : Mask.Special;
+                    break;
+                }
+            }
 
-//    public static bool IsPunctuation(char character)
-//    {
-//        var u32Char = Convert.ToUInt32(character);
-//        return (33 <= u32Char && u32Char <= 47)
-//            || (58 <= u32Char && u32Char <= 64)
-//            || (91 <= u32Char && u32Char <= 96)
-//            || (123 <= u32Char && u32Char <= 126)
-//            || Constants.PUNCTUATION_CHARS.Contains(u32Char);
-//    }
+            if (matchLength > 0)
+            {
+                // Create a new token for the matched special token
+                var specialTokenText = token.Text.Substring(currentIndex, matchLength);
+                var specialTokenOffsets = token.ReferenceOffsets.Skip(currentIndex).Take(matchCharCount).ToArray();
+                result.Add(new Token(specialTokenText, specialTokenOffsets) { Mask = matchMask });
+                currentIndex += matchLength;
+            }
+            else
+            {
+                // No special token found, move to the next character
+                currentIndex++;
+            }
+        }
 
-//    /// <summary>
-//    /// Simple tokenization based on whitespace only
-//    /// </summary>
-//    public static List<TokenRef> WhitespaceTokenize(TokenRef token)
-//    {
-//        return SplitOnChar(token, IsWhitespace, false, Mask.Whitespace);
-//    }
+        return result;
+    }
 
-//    /// <summary>
-//    /// Lowercase
-//    /// </summary>
-//    public static void Lowercase(Token token)
-//    {
-//        var lowerCasedString = new StringBuilder(token.Text.Length);
-//        var characterMapping = new List<uint>(token.Text.Length);
+    /// <summary>
+    /// Tokenizes CJK characters, each character will be a token
+    /// </summary>
+    public static List<Token> TokenizeCjkChars(Token token)
+    {
+        return SplitOnChar(token, IsCjkChar, true, Mask.CJK);
+    }
 
-//        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
-//        {
-//            foreach (var c in character.ToString().ToLower())
-//            {
-//                lowerCasedString.Append(c);
-//                characterMapping.Add(position);
-//            }
-//        }
+    private static bool IsCjkChar(char character)
+    {
+        var u32Char = Convert.ToUInt32(character);
+        return (0x4E00 <= u32Char && u32Char <= 0x9FFF)
+            || (0x3400 <= u32Char && u32Char <= 0x4DBF)
+            || (0x20000 <= u32Char && u32Char <= 0x2A6DF)
+            || (0x2A700 <= u32Char && u32Char <= 0x2B73F)
+            || (0x2B740 <= u32Char && u32Char <= 0x2B81F)
+            || (0x2B820 <= u32Char && u32Char <= 0x2CEAF)
+            || (0xF900 <= u32Char && u32Char <= 0xFAFF)
+            || (0x2F800 <= u32Char && u32Char <= 0x2FA1F);
+    }
 
-//        token.Text = lowerCasedString.ToString();
-//        token.ReferenceOffsets = characterMapping;
-//        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
-//    }
+    public static bool IsWhitespace(char character)
+    {
+        return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character));
+    }
 
-//    /// <summary>
-//    /// Remove diacritics
-//    /// </summary>
-//    public static void StripAccents(Token token)
-//    {
-//        var decomposedString = new StringBuilder(token.Text.Length);
-//        var characterMapping = new List<uint>(token.Text.Length);
+    /// <summary>
+    /// This is a custom method to check if a character is a control character. The BERT tokenizer is
+    /// taking any character whose unicode category starts with `C` as a control character, which includes
+    /// the traditional control `Cc` category, but also the format `Cc`, private use `Co` and surrogate `Cs`.
+    /// The unassigned unicode category `Cn` has been skipped in order to avoid unnecessary checks.
+    /// A faster method may be called by setting strict to false and only check against the core control
+    /// characters. To match the original BERT tokenization, this should remain true.
+    /// </summary>
+    public static bool IsControl(char character, bool strict)
+    {
+        if (Constants.AdditionalWhitespaceChars.Contains(character))
+        {
+            return false;
+        }
 
-//        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
-//        {
-//            foreach (var c in character.ToString().Normalize(NormalizationForm.FormD))
-//            {
-//                if (!Constants.ACCENT_MARKERS.Contains(Convert.ToUInt32(c)))
-//                {
-//                    decomposedString.Append(c);
-//                    characterMapping.Add(position);
-//                }
-//            }
-//        }
+        if (strict)
+        {
+            var u32Char = Convert.ToUInt32(character);
+            return (u32Char <= 0x001F)
+                || (0x0080 <= u32Char && u32Char <= 0x009F)
+                || (0xE0020 <= u32Char && u32Char <= 0xE007F)
+                || (0xE000 <= u32Char && u32Char <= 0xF8FF)
+                || (0xF0000 <= u32Char && u32Char <= 0xFFFFD)
+                || (0x100000 <= u32Char && u32Char <= 0x10FFFD)
+                || (0xD800 <= u32Char && u32Char <= 0xDB7F)
+                || (0xDB80 <= u32Char && u32Char <= 0xDBFF)
+                || (0xDC00 <= u32Char && u32Char <= 0xDFFF)
+                || Constants.ControlChars.Contains(u32Char);
+        }
+        else
+        {
+            return char.IsControl(character);
+        }
+    }
 
-//        token.Text = decomposedString.ToString();
-//        token.ReferenceOffsets = characterMapping;
-//        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
-//    }
+    public static bool IsPunctuation(char character)
+    {
+        var u32Char = Convert.ToUInt32(character);
+        return (33 <= u32Char && u32Char <= 47)
+            || (58 <= u32Char && u32Char <= 64)
+            || (91 <= u32Char && u32Char <= 96)
+            || (123 <= u32Char && u32Char <= 126)
+            || Constants.PunctuationChars.Contains(u32Char);
+    }
 
-//    /// <summary>
-//    /// NFKC decomposition
-//    /// </summary>
-//    public static void DecomposeNfkc(Token token)
-//    {
-//        var decomposedString = new StringBuilder(token.Text.Length);
-//        var characterMapping = new List<uint>(token.Text.Length);
-//        var curPosition = 0;
+    /// <summary>
+    /// Simple tokenization based on whitespace only
+    /// </summary>
+    public static List<Token> WhitespaceTokenize(Token token)
+    {
+        return SplitOnChar(token, IsWhitespace, false, Mask.Whitespace);
+    }
 
-//        foreach (var (character, extraChar) in token.Text.Normalize(NormalizationForm.FormKC))
-//        {
-//            decomposedString.Append(character);
-//            if (extraChar > 0)
-//            {
-//                curPosition -= extraChar;
-//            }
-//            characterMapping.Add(token.ReferenceOffsets[curPosition]);
-//            if (extraChar < 0)
-//            {
-//                curPosition -= extraChar;
-//            }
-//            curPosition += 1;
-//        }
+    /// <summary>
+    /// Lowercase
+    /// </summary>
+    public static void Lowercase(Token token)
+    {
+        var lowerCasedString = new StringBuilder(token.Text.Length);
+        var characterMapping = new List<uint>(token.Text.Length);
 
-//        token.Text = decomposedString.ToString();
-//        token.ReferenceOffsets = characterMapping;
-//        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
-//    }
+        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
+        {
+            foreach (var c in character.ToString().ToLower())
+            {
+                lowerCasedString.Append(c);
+                characterMapping.Add(position);
+            }
+        }
 
-//    /// <summary>
-//    /// Split a token on punctuation
-//    /// </summary>
-//    public static List<TokenRef> SplitOnPunct(TokenRef token)
-//    {
-//        return SplitOnChar(token, IsPunctuation, true, Mask.Punctuation);
-//    }
+        token.Text = lowerCasedString.ToString();
+        token.ReferenceOffsets = characterMapping;
+        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
+    }
 
-//    /// <summary>
-//    /// Split a token on one or more characters (given a character test function)
-//    /// </summary>
-//    public static List<TokenRef> SplitOnChar(TokenRef token, Func<char, bool> testCharacter, bool addSeparators, Mask setMask)
-//    {
-//        var tokens = new List<TokenRef>();
-//        var charBegin = 0;
-//        var bytesBegin = 0;
-//        var charCount = 0;
+    /// <summary>
+    /// Remove diacritics
+    /// </summary>
+    public static void StripAccents(Token token)
+    {
+        var decomposedString = new StringBuilder(token.Text.Length);
+        var characterMapping = new List<uint>(token.Text.Length);
 
-//        if (token.Mask == Mask.None)
-//        {
-//            foreach (var (charIdx, (bytesIdx, c)) in token.Text.Select((c, i) => new { Index = i, Character = c }).ToList())
-//            {
-//                charCount += 1;
-//                if (testCharacter(c))
-//                {
-//                    if (charBegin < charIdx)
-//                    {
-//                        tokens.Add(new TokenRef
-//                        {
-//                            Text = token.Text.Substring(bytesBegin, bytesIdx - bytesBegin),
-//                            Offset = new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)charIdx),
-//                            ReferenceOffsets = token.ReferenceOffsets.Skip(charBegin).Take(charIdx - charBegin).ToArray(),
-//                            Mask = Mask.None
-//                        });
-//                    }
-//                    if (addSeparators)
-//                    {
-//                        tokens.Add(new TokenRef
-//                        {
-//                            Text = token.Text.Substring(bytesIdx, c.ToString().Length),
-//                            Offset = new Offset(token.Offset.Begin + (uint)charIdx, token.Offset.Begin + (uint)charIdx + 1),
-//                            ReferenceOffsets = token.ReferenceOffsets.Skip(charIdx).Take(1).ToArray(),
-//                            Mask = setMask
-//                        });
-//                    }
-//                    charBegin = charIdx + 1;
-//                    bytesBegin = bytesIdx + c.ToString().Length;
-//                }
-//            }
-//        }
-//        if (bytesBegin < token.Text.Length)
-//        {
-//            var bytesIdx = token.Text.Length;
-//            tokens.Add(new TokenRef
-//            {
-//                Text = token.Text.Substring(bytesBegin, bytesIdx - bytesBegin),
-//                Offset = new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)charCount),
-//                ReferenceOffsets = token.ReferenceOffsets.Skip(charBegin).Take(charCount - charBegin).ToArray(),
-//                Mask = Mask.None
-//            });
-//        }
-//        return tokens;
-//    }
+        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
+        {
+            foreach (var c in character.ToString().Normalize(NormalizationForm.FormD))
+            {
+                if (!Constants.AccentMarkers.Contains(Convert.ToUInt32(c)))
+                {
+                    decomposedString.Append(c);
+                    characterMapping.Add(position);
+                }
+            }
+        }
 
-//    public static List<TokenRef> SplitOnRegexWithLookahead(TokenRef token, Regex patternLookahead, Regex patternTokenization)
-//    {
-//        if (token.Mask == Mask.None)
-//        {
-//            var subWords = new List<string>();
-//            var splits = new List<string>();
+        token.Text = decomposedString.ToString();
+        token.ReferenceOffsets = characterMapping;
+        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
+    }
 
-//            var i = 0;
-//            var endByte = 0;
-//            foreach (var hit in patternLookahead.Matches(token.Text))
-//            {
-//                var hitChars = hit.Value.Reverse().ToList();
-//                var start = hitChars[0];
-//                var sep = hitChars[1];
-//                endByte = hit.Index + hit.Length - sep.ToString().Length - start.ToString().Length;
-//                splits.Add(token.Text.Substring(i, endByte - i));
-//                i = endByte;
-//            }
-//            splits.Add(token.Text.Substring(i));
+    /// <summary>
+    /// NFKC decomposition
+    /// </summary>
+    public static void DecomposeNfkc(Token token)
+    {
+        var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
+        var decomposedString = new StringBuilder(normalizedString.Length);
+        var characterMapping = new List<uint>();
 
-//            foreach (var subWord in splits)
-//            {
-//                foreach (var hit in patternTokenization.Matches(subWord))
-//                {
-//                    subWords.Add(hit.Value);
-//                }
-//            }
+        int originalIndex = 0;
+        foreach (var character in normalizedString)
+        {
+            decomposedString.Append(character);
 
-//            var outputTokens = new List<TokenRef>(subWords.Count);
-//            var beginChar = 0;
-//            foreach (var (subWord, idx) in subWords.Select((v, i) => new { Value = v, Index = i }))
-//            {
-//                var endChar = beginChar + subWord.Length;
-//                outputTokens.Add(new TokenRef
-//                {
-//                    Text = subWord,
-//                    Offset = new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)endChar),
-//                    ReferenceOffsets = token.ReferenceOffsets.Skip(beginChar).Take(endChar - beginChar).ToArray(),
-//                    Mask = Mask.None
-//                });
-//                beginChar = endChar;
-//            }
+            // Assuming each character in the normalized string maps to one character in the original string
+            if (originalIndex < token.ReferenceOffsets.Count)
+            {
+                characterMapping.Add(token.ReferenceOffsets[originalIndex]);
+            }
+            else
+            {
+                // Handle cases where normalization adds characters
+                characterMapping.Add(token.ReferenceOffsets.LastOrDefault());
+            }
 
-//            return outputTokens;
-//        }
-//        else
-//        {
-//            return new List<TokenRef> { token };
-//        }
-//    }
+            originalIndex++;
+        }
 
-//    public static List<TokenRef> SplitOnRegex(TokenRef token, Regex patternTokenization)
-//    {
-//        var tokens = new List<TokenRef>();
-//        var beginChar = 0;
-//        foreach (var hit in patternTokenization.Matches(token.Text))
-//        {
-//            var startByte = hit.Index;
-//            if (startByte > 0)
-//            {
-//                beginChar = token.Text.Substring(0, startByte).Length;
-//            }
-//            var endChar = beginChar + hit.Value.Length;
-//            tokens.Add(new TokenRef
-//            {
-//                Text = hit.Value,
-//                Offset = new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)endChar),
-//                ReferenceOffsets = token.ReferenceOffsets.Skip(beginChar).Take(endChar - beginChar).ToArray(),
-//                Mask = Mask.None
-//            });
-//            beginChar = endChar;
-//        }
-//        return tokens;
-//    }
+        token.Text = decomposedString.ToString();
+        token.ReferenceOffsets = characterMapping;
+        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
+    }
 
-//    public static List<TokenRef> SplitAtRegex(TokenRef token, Regex patternTokenization)
-//    {
-//        var tokens = new List<TokenRef>();
-//        var beginChar = 0;
-//        var startByte = 0;
-//        foreach (var hit in patternTokenization.Matches(token.Text))
-//        {
-//            var hitStartByte = hit.Index;
-//            var hitStartChar = token.Text.Substring(0, hitStartByte).Length;
-//            var hitEndByte = hit.Index + hit.Length;
-//            var hitEndChar = beginChar + hit.Value.Length;
+    /// <summary>
+    /// Split a token on punctuation
+    /// </summary>
+    public static List<Token> SplitOnPunct(Token token)
+    {
+        return SplitOnChar(token, IsPunctuation, true, Mask.Punctuation);
+    }
 
-//            if (!string.IsNullOrWhiteSpace(token.Text.Substring(startByte, hitStartByte - startByte)))
-//            {
-//                tokens.Add(new TokenRef
-//                {
-//                    Text = token.Text.Substring(startByte, hitStartByte - startByte),
-//                    Offset = new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)hitStartChar),
-//                    ReferenceOffsets = token.ReferenceOffsets.Skip(beginChar).Take(hitStartChar - beginChar).ToArray(),
-//                    Mask = Mask.None
-//                });
-//            }
+    /// <summary>
+    /// Split a token on one or more characters (given a character test function)
+    /// </summary>
+    public static List<Token> SplitOnChar(Token token, Func<char, bool> testCharacter, bool addSeparators, Mask setMask)
+    {
+        var tokens = new List<Token>();
+        var charBegin = 0;
+        var bytesBegin = 0;
+        var charCount = 0;
 
-//            tokens.Add(new TokenRef
-//            {
-//                Text = hit.Value,
-//                Offset = new Offset(token.Offset.Begin + (uint)hitStartChar, token.Offset.Begin + (uint)hitEndChar),
-//                ReferenceOffsets = token.ReferenceOffsets.Skip(hitStartChar).Take(hitEndChar - hitStartChar).ToArray(),
-//                Mask = Mask.None
-//            });
-//            beginChar = hitEndChar;
-//            startByte = hitEndByte;
-//        }
-//        if (!string.IsNullOrWhiteSpace(token.Text.Substring(startByte)))
-//        {
-//            tokens.Add(new TokenRef
-//            {
-//                Text = token.Text.Substring(startByte),
-//                Offset = new Offset(token.Offset.Begin + (uint)beginChar, (uint)token.Text.Length),
-//                ReferenceOffsets = token.ReferenceOffsets.Skip(startByte).ToArray(),
-//                Mask = Mask.None
-//            });
-//        }
+        if (token.Mask == Mask.None)
+        {
+            for (int charIdx = 0; charIdx < token.Text.Length; charIdx++)
+            {
+                char c = token.Text[charIdx];
+                int bytesIdx = Encoding.UTF8.GetByteCount(token.Text.Substring(0, charIdx));
+                charCount += 1;
 
-//        return tokens;
-//    }
+                if (testCharacter(c))
+                {
+                    if (charBegin < charIdx)
+                    {
+                        tokens.Add(new Token(
+                            token.Text.Substring(bytesBegin, bytesIdx - bytesBegin),
+                            new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)charIdx),
+                            token.ReferenceOffsets.Skip(charBegin).Take(charIdx - charBegin).ToList(),
+                            Mask.None
+                        ));
+                    }
+                    if (addSeparators)
+                    {
+                        tokens.Add(new Token(
+                            c.ToString(),
+                            new Offset(token.Offset.Begin + (uint)charIdx, token.Offset.Begin + (uint)charIdx + 1),
+                            new List<uint> { token.ReferenceOffsets[charIdx] },
+                            setMask
+                        ));
+                    }
+                    charBegin = charIdx + 1;
+                    bytesBegin = bytesIdx + Encoding.UTF8.GetByteCount(c.ToString());
+                }
+            }
+        }
 
-//    /// <summary>
-//    /// Split a token on one or more substrings (given a substring test function)
-//    /// </summary>
-//    public static List<TokenRef> SplitOnSubstr(TokenRef token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
-//    {
-//        var tokens = new List<TokenRef>();
-//        var charBegin = 0;
-//        var bytesBegin = 0;
-//        var charCount = 0;
+        if (charBegin < token.Text.Length)
+        {
+            tokens.Add(new Token(
+                token.Text.Substring(bytesBegin),
+                new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)token.Text.Length),
+                token.ReferenceOffsets.Skip(charBegin).ToList(),
+                Mask.None
+            ));
+        }
 
-//        if (token.Mask == Mask.None)
-//        {
-//            foreach (var (charIdx, (bytesIdx, _)) in token.Text.Select((c, i) => new { Index = i, Character = c }).ToList())
-//            {
-//                charCount += 1;
-//                var (matchedBytes, matchedChars, setMask) = testSubstr(token.Text.Substring(bytesIdx));
-//                if (matchedChars > 0)
-//                {
-//                    if (charBegin < charIdx)
-//                    {
-//                        tokens.Add(new TokenRef
-//                        {
-//                            Text = token.Text.Substring(bytesBegin, bytesIdx - bytesBegin),
-//                            Offset = new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)charIdx),
-//                            ReferenceOffsets = token.ReferenceOffsets.Skip(charBegin).Take(charIdx - charBegin).ToArray(),
-//                            Mask = Mask.None
-//                        });
-//                    }
-//                    if (addSeparators)
-//                    {
-//                        tokens.Add(new TokenRef
-//                        {
-//                            Text = token.Text.Substring(bytesIdx, matchedBytes),
-//                            Offset = new Offset(token.Offset.Begin + (uint)charIdx, token.Offset.Begin + (uint)charIdx + matchedChars),
-//                            ReferenceOffsets = token.ReferenceOffsets.Skip(charIdx).Take(matchedChars).ToArray(),
-//                            Mask = setMask
-//                        });
-//                    }
-//                    charBegin = charIdx + matchedChars;
-//                    bytesBegin = bytesIdx + matchedBytes;
-//                }
-//            }
-//        }
-//        if (bytesBegin < token.Text.Length)
-//        {
-//            var bytesIdx = token.Text.Length;
-//            tokens.Add(new TokenRef
-//            {
-//                Text = token.Text.Substring(bytesBegin, bytesIdx - bytesBegin),
-//                Offset = new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)charCount),
-//                ReferenceOffsets = token.ReferenceOffsets.Skip(charBegin).Take(charCount - charBegin).ToArray(),
-//                Mask = Mask.None
-//            });
-//        }
-//        return tokens;
-//    }
+        return tokens;
+    }
 
-//    /// <summary>
-//    /// Tokenize a token into word pieces according to the supplied vocabulary
-//    /// Continuation word pieces will all have the suffix `##`
-//    /// </summary>
-//    public static List<Token> TokenizeWordpiece(TokenRef token, IVocab vocab, int maxWordLen)
-//    {
-//        var tokens = new List<Token>();
-//        if (token.Text.Length > maxWordLen)
-//        {
-//            tokens.Add(new Token
-//            {
-//                Text = vocab.GetUnknownValue(),
-//                Offset = token.Offset,
-//                ReferenceOffsets = token.ReferenceOffsets.ToList(),
-//                Mask = Mask.Unknown
-//            });
-//        }
-//        else
-//        {
-//            var charIndices = token.Text.Select((c, i) => new { Index = i, Character = c }).ToDictionary(x => x.Index, x => x.Character);
-//            var maxEnd = charIndices.Last().Key + token.Text.Last().ToString().Length;
-//            var start = 0;
-//            var posBegin = 0;
-//            var posEnd = 0;
-//            var end = 0;
+    public static List<Token> SplitOnRegexWithLookahead(Token token, Regex patternLookahead, Regex patternTokenization)
+    {
+        if (token.Mask == Mask.None)
+        {
+            var subWords = new List<string>();
+            var splits = new List<string>();
 
-//            while (start < maxEnd)
-//            {
-//                end = maxEnd;
-//                posEnd = charIndices.Count;
-//                var isUnk = true;
+            int i = 0;
+            foreach (Match hit in patternLookahead.Matches(token.Text))
+            {
+                var hitChars = hit.Value.Reverse().ToArray();
+                var start = hitChars[0];
+                var sep = hitChars[1];
+                int endByte = hit.Index + hit.Length - sep.ToString().Length - start.ToString().Length;
+                splits.Add(token.Text.Substring(i, endByte - i));
+                i = endByte;
+            }
+            splits.Add(token.Text.Substring(i));
 
-//                while (start < end)
-//                {
-//                    var substr = token.Text.Substring(start, end - start);
-//                    var charLength = substr.Length;
-//                    var subOffset = new Offset(token.Offset.Begin + (uint)posBegin, token.Offset.Begin + (uint)posBegin + (uint)charLength);
+            foreach (var subWord in splits)
+            {
+                foreach (Match hit in patternTokenization.Matches(subWord))
+                {
+                    subWords.Add(hit.Value);
+                }
+            }
 
-//                    if (start > 0)
-//                    {
-//                        substr = "##" + substr;
-//                    }
+            var outputTokens = new List<Token>(subWords.Count);
+            int beginChar = 0;
+            foreach (var subWord in subWords)
+            {
+                int endChar = beginChar + subWord.Length;
+                outputTokens.Add(new Token(
+                    subWord,
+                    new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)endChar),
+                    token.ReferenceOffsets.Skip(beginChar).Take(endChar - beginChar).ToArray(),
+                    Mask.None
+                ));
+                beginChar = endChar;
+            }
 
-//                    if (vocab.Values().ContainsKey(substr))
-//                    {
-//                        tokens.Add(new Token
-//                        {
-//                            Text = substr,
-//                            Offset = subOffset,
-//                            ReferenceOffsets = token.ReferenceOffsets.Skip(posBegin).Take(charLength).ToList(),
-//                            Mask = start > 0 ? Mask.Continuation : token.Mask
-//                        });
-//                        isUnk = false;
-//                        break;
-//                    }
+            return outputTokens;
+        }
+        else
+        {
+            return new List<Token> { token };
+        }
+    }
 
-//                    posEnd -= 1;
-//                    end = charIndices[posEnd].Key;
-//                }
 
-//                if (isUnk)
-//                {
-//                    return new List<Token>
-//                        {
-//                            new Token
-//                            {
-//                                Text = vocab.GetUnknownValue(),
-//                                Offset = token.Offset,
-//                                ReferenceOffsets = token.ReferenceOffsets.ToList(),
-//                                Mask = Mask.Unknown
-//                            }
-//                        };
-//                }
+    public static List<Token> SplitOnRegex(Token token, Regex patternTokenization)
+    {
+        var tokens = new List<Token>();
+        int beginChar = 0;
 
-//                start = end;
-//                posBegin = posEnd;
-//            }
+        foreach (Match hit in patternTokenization.Matches(token.Text))
+        {
+            int startByte = hit.Index;
+            if (startByte > 0)
+            {
+                beginChar = token.Text.Substring(0, startByte).Length;
+            }
+            int endChar = beginChar + hit.Value.Length;
 
-//            FixMask(tokens);
-//        }
+            tokens.Add(new Token(
+                hit.Value,
+                new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)endChar),
+                token.ReferenceOffsets.Skip(beginChar).Take(endChar - beginChar).ToArray(),
+                Mask.None
+            ));
 
-//        return tokens;
-//    }
+            beginChar = endChar;
+        }
 
-//    private static void FixMask(List<Token> tokens)
-//    {
-//        for (var i = 1; i < tokens.Count; i++)
-//        {
-//            if (tokens[i].Mask == Mask.Continuation && tokens[i - 1].Mask == Mask.None)
-//            {
-//                tokens[i - 1].Mask = Mask.Begin;
-//            }
-//        }
-//    }
+        return tokens;
+    }
 
-//    public static List<TokenRef> SplitOnLanguageCode(TokenRef token, int codeLength, HashSet<List<byte>> languageCodesBytes)
-//    {
-//        if (token.Text.Length < codeLength)
-//        {
-//            return new List<TokenRef> { token };
-//        }
 
-//        var tokens = new List<TokenRef>();
-//        var beginChar = 0;
-//        var startByte = 0;
+    public static List<Token> SplitAtRegex(Token token, Regex patternTokenization)
+    {
+        var tokens = new List<Token>();
+        int beginChar = 0;
+        int startByte = 0;
 
-//        foreach (var (cStart, c) in token.Text.Select((c, i) => new { Index = i, Character = c }).ToList())
-//        {
-//            if (!char.IsWhiteSpace(c))
-//            {
-//                break;
-//            }
-//            startByte = cStart;
-//            beginChar += 1;
-//        }
+        foreach (Match hit in patternTokenization.Matches(token.Text))
+        {
+            int hitStartByte = hit.Index;
+            int hitStartChar = token.Text.Substring(0, hitStartByte).Length;
+            int hitEndByte = hit.Index + hit.Length;
+            int hitEndChar = beginChar + hit.Value.Length;
 
-//        var leadingBytes = Encoding.UTF8.GetBytes(token.Text.Substring(startByte, codeLength));
+            if (!string.IsNullOrWhiteSpace(token.Text.Substring(startByte, hitStartByte - startByte)))
+            {
+                tokens.Add(new Token(
+                    token.Text.Substring(startByte, hitStartByte - startByte),
+                    new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)hitStartChar),
+                    token.ReferenceOffsets.Skip(beginChar).Take(hitStartChar - beginChar).ToArray(),
+                    Mask.None
+                ));
+            }
 
-//        if (languageCodesBytes.Contains(leadingBytes.ToList()))
-//        {
-//            tokens.Add(new TokenRef
-//            {
-//                Text = token.Text.Substring(startByte, codeLength),
-//                Offset = new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)beginChar + (uint)codeLength),
-//                ReferenceOffsets = token.ReferenceOffsets.Skip(beginChar).Take(codeLength).ToArray(),
-//                Mask = Mask.Special
-//            });
+            tokens.Add(new Token(
+                hit.Value,
+                new Offset(token.Offset.Begin + (uint)hitStartChar, token.Offset.Begin + (uint)hitEndChar),
+                token.ReferenceOffsets.Skip(hitStartChar).Take(hitEndChar - hitStartChar).ToArray(),
+                Mask.None
+            ));
 
-//            startByte += codeLength;
-//            beginChar += codeLength;
+            beginChar = hitEndChar;
+            startByte = hitEndByte;
+        }
 
-//            foreach (var (cStart, c) in token.Text.Substring(startByte).Select((c, i) => new { Index = i, Character = c }).ToList())
-//            {
-//                if (!char.IsWhiteSpace(c))
-//                {
-//                    break;
-//                }
-//                startByte = cStart;
-//                beginChar += 1;
-//            }
-//        }
+        if (!string.IsNullOrWhiteSpace(token.Text.Substring(startByte)))
+        {
+            tokens.Add(new Token(
+                token.Text.Substring(startByte),
+                new Offset(token.Offset.Begin + (uint)beginChar, (uint)token.Text.Length),
+                token.ReferenceOffsets.Skip(startByte).ToArray(),
+                Mask.None
+            ));
+        }
 
-//        tokens.Add(new TokenRef
-//        {
-//            Text = token.Text.Substring(startByte),
-//            Offset = new Offset(token.Offset.Begin + (uint)beginChar, (uint)token.Text.Length),
-//            ReferenceOffsets = token.ReferenceOffsets.Skip(beginChar).ToArray(),
-//            Mask = Mask.None
-//        });
+        return tokens;
+    }
 
-//        return tokens;
-//    }
 
-//    public static List<Token> UnknownByteFallback(TokenRef token, IVocab vocab)
-//    {
-//        if (!vocab.Values().ContainsKey(token.Text))
-//        {
-//            return token.Text.Select(c => new Token
-//            {
-//                Text = $"<{Convert.ToByte(c):X4}>",
-//                Offset = new Offset(token.Offset.End, token.Offset.End),
-//                ReferenceOffsets = new List<uint> { token.ReferenceOffsets.Last() },
-//                Mask = token.Mask
-//            }).ToList();
-//        }
+    /// <summary>
+    /// Split a token on one or more substrings (given a substring test function)
+    /// * token: The token to split
+    /// * test_str: A function that contains the string buffer from the current point forward and
+    /// returns a 3-tuple with the length of the match in bytes, chars and the mask to set (if the
+    /// length is zero then there is no match.
+    /// * add_separators: Add the separating characters to the tokens as well? (bool), separating tokens
+    /// will be indicated in the returned mask by the value set in `set_mask`, which is returned by the test_substr function
+    /// </summary>
+    public static List<Token> SplitOnSubstr(Token token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
+    {
+        var tokens = new List<Token>();
+        int charBegin = 0;
+        int bytesBegin = 0;
+        int charCount = 0;
 
-//        return null;
-//    }
-//}
+        if (token.Mask == Mask.None)
+        {
+            for (int charIdx = 0; charIdx < token.Text.Length; charIdx++)
+            {
+                charCount += 1;
+                var (matchedBytes, matchedChars, setMask) = testSubstr(token.Text.Substring(charIdx));
+                if (matchedChars > 0)
+                {
+                    if (charBegin < charIdx)
+                    {
+                        var text = token.Text.Substring(bytesBegin, charIdx - bytesBegin).TrimEnd();
+                        var trimmedTextLen = text.Length;
+                        if (trimmedTextLen > 0)
+                        {
+                            tokens.Add(new Token(
+                                text,
+                                new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)(charBegin + trimmedTextLen)),
+                                token.ReferenceOffsets.Skip(charBegin).Take(trimmedTextLen).ToArray(),
+                                Mask.None
+                            ));
+                        }
+                    }
+                    if (addSeparators)
+                    {
+                        tokens.Add(new Token(
+                            token.Text.Substring(charIdx, matchedBytes),
+                            new Offset(token.Offset.Begin + (uint)charIdx, token.Offset.Begin + (uint)(charIdx + matchedChars)),
+                            token.ReferenceOffsets.Skip(charIdx).Take(matchedChars).ToArray(),
+                            setMask
+                        ));
+                    }
+                    charBegin = charIdx + matchedChars;
+                    bytesBegin = charIdx + matchedBytes;
+                }
+            }
+        }
+        if (bytesBegin < token.Text.Length)
+        {
+            var remainingText = token.Text.Substring(bytesBegin);
+            tokens.Add(new Token(
+                remainingText,
+                new Offset(token.Offset.Begin + (uint)charBegin, token.Offset.Begin + (uint)token.Text.Length),
+                token.ReferenceOffsets.Skip(charBegin).ToArray(),
+                Mask.None
+            ));
+        }
+        return tokens;
+    }
+
+    /// <summary>
+    /// Tokenize a token into word pieces according to the supplied vocabulary
+    /// Continuation word pieces will all have the suffix `##`
+    /// </summary>
+    public static List<Token> TokenizeWordpiece(Token token, IVocab vocab, int maxWordLen)
+    {
+        var tokens = new List<Token>();
+        if (token.Text.Length > maxWordLen)
+        {
+            tokens.Add(new Token(
+                vocab.GetUnknownValue(),
+                token.Offset,
+                token.ReferenceOffsets.ToArray(),
+                Mask.Unknown
+            ));
+        }
+        else
+        {
+            var charIndices = token.Text.Select((c, i) => i).ToList();
+            var maxEnd = charIndices.Last() + token.Text.Last().ToString().Length;
+            var start = 0;
+            var posBegin = 0;
+            var posEnd = 0;
+            var end = 0;
+
+            while (start < maxEnd)
+            {
+                end = maxEnd;
+                posEnd = charIndices.Count;
+                var isUnk = true;
+
+                while (start < end)
+                {
+                    var substr = token.Text.Substring(start, end - start);
+                    var charLength = substr.Length;
+                    var subOffset = new Offset(token.Offset.Begin + (uint)posBegin, token.Offset.Begin + (uint)(posBegin + charLength));
+
+                    if (start > 0)
+                    {
+                        substr = "##" + substr;
+                    }
+
+                    if (vocab.Values.ContainsKey(substr))
+                    {
+                        tokens.Add(new Token(
+                            substr,
+                            subOffset,
+                            token.ReferenceOffsets.Skip(posBegin).Take(charLength).ToArray(),
+                            start > 0 ? Mask.Continuation : token.Mask
+                        ));
+                        isUnk = false;
+                        break;
+                    }
+
+                    posEnd -= 1;
+                    end = charIndices[posEnd];
+                }
+
+                if (isUnk)
+                {
+                    return new List<Token>
+                {
+                    new Token(
+                        vocab.GetUnknownValue(),
+                        token.Offset,
+                        token.ReferenceOffsets.ToArray(),
+                        Mask.Unknown
+                    )
+                };
+                }
+
+                start = end;
+                posBegin = posEnd;
+            }
+
+            FixMask(tokens);
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    /// Truncates a sequence pair in place to the maximum length.
+    /// </summary>
+    /// <param name="tokenIdsWithOffsets1">First list of tokenized input ids.</param>
+    /// <param name="tokenIdsWithOffsets2">Optional second list of input ids.</param>
+    /// <param name="numTokensToRemove">Number of tokens to remove using the truncation strategy.</param>
+    /// <param name="truncationStrategy">Truncation strategy.</param>
+    /// <param name="stride">If set along with max_length, the overflowing tokens returned will contain some tokens from the main sequence returned.</param>
+    /// <returns>Tuple of updated sequences, overflow tokens, and overflow offsets.</returns>
+    /// <exception cref="TokenizerError">Thrown when truncation is not possible as per the provided parameters and strategy.</exception>
+
+    public static (TokenIdsWithOffsets, TokenIdsWithOffsets?, List<long>, List<Offset?>) TruncateSequences(
+        TokenIdsWithOffsets tokenIdsWithOffsets1,
+        TokenIdsWithOffsets? tokenIdsWithOffsets2,
+        int numTokensToRemove,
+        TruncationStrategy truncationStrategy,
+        int stride)
+    {
+        if (numTokensToRemove == 0)
+        {
+            return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, new List<long>(), new List<Offset?>());
+        }
+        else if (tokenIdsWithOffsets2 != null)
+        {
+            switch (truncationStrategy)
+            {
+                case TruncationStrategy.LongestFirst:
+                    if (tokenIdsWithOffsets1.Ids.Count + tokenIdsWithOffsets2.Ids.Count >= numTokensToRemove)
+                    {
+                        var overflowTokens = new List<long>(numTokensToRemove + stride);
+                        var overflowOffsets = new List<Offset?>(numTokensToRemove + stride);
+                        for (int i = 0; i < numTokensToRemove; i++)
+                        {
+                            if (tokenIdsWithOffsets1.Ids.Count >= tokenIdsWithOffsets2.Ids.Count)
+                            {
+                                overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
+                                tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
+                                if (tokenIdsWithOffsets1.Offsets.Count > 0)
+                                {
+                                    overflowOffsets.Insert(0, tokenIdsWithOffsets1.Offsets.Last());
+                                    tokenIdsWithOffsets1.Offsets.RemoveAt(tokenIdsWithOffsets1.Offsets.Count - 1);
+                                }
+                                tokenIdsWithOffsets1.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets1.ReferenceOffsets.Count - 1);
+                                if (tokenIdsWithOffsets1.Masks.Count > 0)
+                                {
+                                    tokenIdsWithOffsets1.Masks.RemoveAt(tokenIdsWithOffsets1.Masks.Count - 1);
+                                }
+                            }
+                            else
+                            {
+                                overflowTokens.Insert(0, tokenIdsWithOffsets2.Ids.Last());
+                                tokenIdsWithOffsets2.Ids.RemoveAt(tokenIdsWithOffsets2.Ids.Count - 1);
+                                if (tokenIdsWithOffsets2.Offsets.Count > 0)
+                                {
+                                    overflowOffsets.Insert(0, tokenIdsWithOffsets2.Offsets.Last());
+                                    tokenIdsWithOffsets2.Offsets.RemoveAt(tokenIdsWithOffsets2.Offsets.Count - 1);
+                                }
+                                tokenIdsWithOffsets2.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets2.ReferenceOffsets.Count - 1);
+                                if (tokenIdsWithOffsets2.Masks.Count > 0)
+                                {
+                                    tokenIdsWithOffsets2.Masks.RemoveAt(tokenIdsWithOffsets2.Masks.Count - 1);
+                                }
+                            }
+                        }
+                        // Handle stride
+                        int windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
+                        if (windowLen > 0)
+                        {
+                            overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
+                            if (tokenIdsWithOffsets1.Offsets.Count > 0)
+                            {
+                                overflowOffsets.InsertRange(0, tokenIdsWithOffsets1.Offsets.GetRange(tokenIdsWithOffsets1.Offsets.Count - windowLen, windowLen));
+                            }
+                        }
+                        return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
+                    }
+                    else
+                    {
+                        throw new ValueTokenizerException("Combined sequence length too short for requested truncation amount");
+                    }
+
+                case TruncationStrategy.OnlyFirst:
+                    if (tokenIdsWithOffsets1.Ids.Count >= numTokensToRemove)
+                    {
+                        var overflowTokens = new List<long>();
+                        var overflowOffsets = new List<Offset?>();
+
+                        // Truncate the first sequence
+                        for (int i = 0; i < numTokensToRemove; i++)
+                        {
+                            overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
+                            tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
+
+                            if (tokenIdsWithOffsets1.Offsets.Count > 0)
+                            {
+                                overflowOffsets.Insert(0, tokenIdsWithOffsets1.Offsets.Last());
+                                tokenIdsWithOffsets1.Offsets.RemoveAt(tokenIdsWithOffsets1.Offsets.Count - 1);
+                            }
+
+                            tokenIdsWithOffsets1.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets1.ReferenceOffsets.Count - 1);
+
+                            if (tokenIdsWithOffsets1.Masks.Count > 0)
+                            {
+                                tokenIdsWithOffsets1.Masks.RemoveAt(tokenIdsWithOffsets1.Masks.Count - 1);
+                            }
+                        }
+
+                        // Handle stride
+                        int windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
+                        if (windowLen > 0)
+                        {
+                            overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
+                            if (tokenIdsWithOffsets1.Offsets.Count > 0)
+                            {
+                                overflowOffsets.InsertRange(0, tokenIdsWithOffsets1.Offsets.GetRange(tokenIdsWithOffsets1.Offsets.Count - windowLen, windowLen));
+                            }
+                        }
+
+                        return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
+                    }
+                    else
+                    {
+                        throw new ValueTokenizerException("First sequence too short for first only truncation");
+                    }
+
+                case TruncationStrategy.OnlySecond:
+                    if (tokenIdsWithOffsets2.Ids.Count >= numTokensToRemove)
+                    {
+                        var overflowTokens = new List<long>(numTokensToRemove + stride);
+                        var overflowOffsets = new List<Offset?>(numTokensToRemove + stride);
+
+                        for (int i = 0; i < numTokensToRemove; i++)
+                        {
+                            overflowTokens.Insert(0, tokenIdsWithOffsets2.Ids.Last());
+                            tokenIdsWithOffsets2.Ids.RemoveAt(tokenIdsWithOffsets2.Ids.Count - 1);
+
+                            if (tokenIdsWithOffsets2.Offsets.Count > 0)
+                            {
+                                overflowOffsets.Insert(0, tokenIdsWithOffsets2.Offsets.Last());
+                                tokenIdsWithOffsets2.Offsets.RemoveAt(tokenIdsWithOffsets2.Offsets.Count - 1);
+                            }
+
+                            tokenIdsWithOffsets2.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets2.ReferenceOffsets.Count - 1);
+
+                            if (tokenIdsWithOffsets2.Masks.Count > 0)
+                            {
+                                tokenIdsWithOffsets2.Masks.RemoveAt(tokenIdsWithOffsets2.Masks.Count - 1);
+                            }
+                        }
+
+                        // Handle stride
+                        int windowLen = Math.Min(tokenIdsWithOffsets2.Ids.Count, stride);
+                        if (windowLen > 0)
+                        {
+                            overflowTokens.InsertRange(0, tokenIdsWithOffsets2.Ids.GetRange(tokenIdsWithOffsets2.Ids.Count - windowLen, windowLen));
+                            if (tokenIdsWithOffsets2.Offsets.Count > 0)
+                            {
+                                overflowOffsets.InsertRange(0, tokenIdsWithOffsets2.Offsets.GetRange(tokenIdsWithOffsets2.Offsets.Count - windowLen, windowLen));
+                            }
+                        }
+
+                        return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
+                    }
+                    else
+                    {
+                        throw new ValueTokenizerException("Second sequence too short for second only truncation");
+                    }
+
+                case TruncationStrategy.DoNotTruncate:
+                    throw new Exception("Truncation needed but no truncation requested");
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(truncationStrategy), "Invalid truncation strategy");
+            }
+        }
+        else if (tokenIdsWithOffsets1.Ids.Count >= numTokensToRemove)
+        {
+            switch (truncationStrategy)
+            {
+                case TruncationStrategy.LongestFirst:
+                case TruncationStrategy.OnlyFirst:
+                    var overflowTokens = new List<long>();
+                    var overflowOffsets = new List<Offset?>();
+
+                    // Truncate the first sequence
+                    for (int i = 0; i < numTokensToRemove; i++)
+                    {
+                        overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
+                        tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
+
+                        if (tokenIdsWithOffsets1.Offsets.Count > 0)
+                        {
+                            overflowOffsets.Insert(0, tokenIdsWithOffsets1.Offsets.Last());
+                            tokenIdsWithOffsets1.Offsets.RemoveAt(tokenIdsWithOffsets1.Offsets.Count - 1);
+                        }
+
+                        tokenIdsWithOffsets1.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets1.ReferenceOffsets.Count - 1);
+
+                        if (tokenIdsWithOffsets1.Masks.Count > 0)
+                        {
+                            tokenIdsWithOffsets1.Masks.RemoveAt(tokenIdsWithOffsets1.Masks.Count - 1);
+                        }
+                    }
+
+                    // Handle stride
+                    int windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
+                    if (windowLen > 0)
+                    {
+                        overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
+                        if (tokenIdsWithOffsets1.Offsets.Count > 0)
+                        {
+                            overflowOffsets.InsertRange(0, tokenIdsWithOffsets1.Offsets.GetRange(tokenIdsWithOffsets1.Offsets.Count - windowLen, windowLen));
+                        }
+                    }
+
+                    return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
+
+                case TruncationStrategy.OnlySecond:
+                    throw new ValueTokenizerException("Invalid truncation strategy for single sentence truncation");
+
+                case TruncationStrategy.DoNotTruncate:
+                    throw new ValueTokenizerException("Truncation needed but no truncation requested");
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(truncationStrategy), "Invalid truncation strategy");
+            }
+        }
+        else
+        {
+            throw new ValueTokenizerException("First sequence too short for first only truncation");
+        }
+    }
+
+    public static (List<long>, List<Offset?>) TruncateWithOverflow(
+        List<long> sequence,
+        List<Offset?> offsets,
+        List<List<uint>> originalPositions,
+        List<Mask> mask,
+        int numTokensToRemove,
+        int stride)
+    {
+        if (offsets.Any())
+        {
+            if (sequence.Count != offsets.Count)
+                throw new ArgumentException("Sequence and offsets must be of the same length.");
+        }
+        if (mask.Any())
+        {
+            if (sequence.Count != mask.Count)
+                throw new ArgumentException("Sequence and mask must be of the same length.");
+        }
+
+        int cutoff = sequence.Count - numTokensToRemove;
+        List<long> overflowTokens = sequence.GetRange(cutoff, numTokensToRemove);
+        sequence.RemoveRange(cutoff, numTokensToRemove);
+
+        List<Offset?> overflowOffsets = new List<Offset?>();
+        if (offsets.Any())
+        {
+            overflowOffsets = offsets.GetRange(cutoff, offsets.Count - cutoff);
+            offsets.RemoveRange(cutoff, offsets.Count - cutoff);
+        }
+
+        if (mask.Any())
+        {
+            mask.RemoveRange(cutoff, mask.Count - cutoff);
+            originalPositions.RemoveRange(cutoff, originalPositions.Count - cutoff);
+        }
+
+        int windowLen = Math.Min(sequence.Count, stride);
+        if (windowLen > 0)
+        {
+            overflowTokens.InsertRange(0, sequence.GetRange(sequence.Count - windowLen, windowLen));
+            if (offsets.Any())
+            {
+                overflowOffsets.InsertRange(0, offsets.GetRange(offsets.Count - windowLen, windowLen));
+            }
+        }
+
+        return (overflowTokens, overflowOffsets);
+    }
+
+    public static HashSet<(string, string)> GetPairs(List<string> tokens)
+    {
+        if (tokens.Count < 2)
+        {
+            return null;
+        }
+
+        var output = new HashSet<(string, string)>();
+        for (int idx = 0; idx < tokens.Count - 1; idx++)
+        {
+            output.Add((tokens[idx], tokens[idx + 1]));
+        }
+
+        return output;
+    }
+
+    public static (List<string>, bool) GroupCommonPairs(List<string> tokens, Dictionary<(string, string), long> bpeRanks)
+    {
+        var pairs = GetPairs(tokens);
+        if (pairs == null || !pairs.Any())
+        {
+            return (tokens, true);
+        }
+
+        var bigram = pairs
+            .OrderBy(pair => bpeRanks.TryGetValue(pair, out long rank) ? rank : long.MaxValue)
+            .FirstOrDefault();
+
+        if (!bpeRanks.ContainsKey(bigram))
+        {
+            return (tokens, true);
+        }
+
+        var tempSubTokens = new List<string>();
+        int i = 0;
+
+        while (i < tokens.Count)
+        {
+            int j = tokens.FindIndex(i, t => t == bigram.Item1);
+            if (j == -1)
+            {
+                tempSubTokens.AddRange(tokens.GetRange(i, tokens.Count - i));
+                break;
+            }
+
+            tempSubTokens.AddRange(tokens.GetRange(i, j - i));
+            i = j;
+
+            if (tokens[i] == bigram.Item1 && i < tokens.Count - 1)
+            {
+                if (tokens[i + 1] == bigram.Item2)
+                {
+                    string combinedBytes = bigram.Item1 + bigram.Item2;
+                    tempSubTokens.Add(combinedBytes);
+                    i += 2;
+                }
+                else
+                {
+                    tempSubTokens.Add(bigram.Item1);
+                    i++;
+                }
+            }
+            else
+            {
+                tempSubTokens.Add(bigram.Item1);
+                i++;
+            }
+        }
+
+        return (tempSubTokens, tempSubTokens.Count == 1);
+    }
+
+    public static (List<string>, List<int>) CtrlBpe(string token, Dictionary<(string, string), long> bpeRanks)
+    {
+        var subTokens = token.ToCharArray().Select(c => c.ToString()).ToList();
+        if (subTokens.Any())
+        {
+            subTokens[subTokens.Count - 1] += "</w>";
+        }
+
+        var output = (subTokens, false);
+        while (true)
+        {
+            output = GroupCommonPairs(output.Item1, bpeRanks);
+            if (output.Item2)
+            {
+                break;
+            }
+        }
+
+        int length = output.Item1.Count;
+        for (int i = 0; i < length; i++)
+        {
+            if (i < length - 1)
+            {
+                output.Item1[i] += "@@";
+            }
+            else
+            {
+                output.Item1[i] = output.Item1[i].TrimEnd("</w>".ToCharArray());
+            }
+        }
+
+        var charCounts = output.Item1.Select(v => v.TrimEnd("@@".ToCharArray()).Length).ToList();
+        return (output.Item1, charCounts);
+    }
+
+
+    public static (List<string>, List<int>) OpenAIGptBpe(string token, Dictionary<(string, string), long> bpeRanks)
+    {
+        var subTokens = token.ToCharArray().Select(c => c.ToString()).ToList();
+        if (subTokens.Any())
+        {
+            subTokens[subTokens.Count - 1] += "</w>";
+        }
+
+        var output = (subTokens, false);
+        while (true)
+        {
+            output = GroupCommonPairs(output.Item1, bpeRanks);
+            if (output.Item2)
+            {
+                break;
+            }
+        }
+
+        var charCounts = output.Item1.Select(v => v.TrimEnd("</w>".ToCharArray()).Length).ToList();
+        return (output.Item1, charCounts);
+    }
+
+
+    public static (List<string>, List<int>) Bpe(string token, Dictionary<(string, string), long> bpeRanks)
+    {
+        var subTokens = token.ToCharArray().Select(c => c.ToString()).ToList();
+
+        var output = (subTokens, false);
+        while (true)
+        {
+            output = GroupCommonPairs(output.Item1, bpeRanks);
+            if (output.Item2)
+            {
+                break;
+            }
+        }
+
+        var charCounts = output.Item1.Select(v => v.Length).ToList();
+        return (output.Item1, charCounts);
+    }
+
+    public static List<int> BytesOffsets(string text)
+    {
+        var offsets = new List<int>(text.Length);
+        for (int i = 0; i < text.Length; i++)
+        {
+            var character = text[i];
+            int charBytes = Char.IsSurrogate(character) ? 4 : 2;
+            for (int j = 0; j < charBytes; j++)
+            {
+                offsets.Add(i);
+            }
+        }
+        return offsets;
+    }
+
+    public static List<Token> SplitOnBpePairs(
+        Token token, 
+        Func<string, Dictionary<(string, string), long>, (List<string>, List<int>)> bpeFunction, 
+        Dictionary<(string, string), long> bpeRanks, 
+        Dictionary<string, (List<string>, List<int>)> cache, 
+        bool asBytes)
+{
+    var tokens = new List<Token>();
+    string textToProcess;
+    List<uint> referenceOffsets;
+
+    if (asBytes)
+    {
+        // Convert the string to bytes and then map each byte to a character
+        var bytes = Encoding.UTF8.GetBytes(token.Text);
+        var referenceOffsetsPlaceholder = BytesOffsets(token.Text)
+            .Select(pos => token.ReferenceOffsets[pos])
+            .ToList();
+        textToProcess = new string(bytes.Select(b => Constants.BytesToUnicode[b]).ToArray());
+        referenceOffsets = referenceOffsetsPlaceholder;
+    }
+    else
+    {
+        textToProcess = token.Text;
+        referenceOffsets = token.ReferenceOffsets.ToList();
+    }
+
+    bool cached = false;
+    if (cache.TryGetValue(textToProcess, out var cacheValue))
+    {
+        var (cachedTokens, charCounts) = cacheValue;
+        int start = 0;
+        for (int idx = 0; idx < cachedTokens.Count; idx++)
+        {
+            var subToken = cachedTokens[idx];
+            var charCount = charCounts[idx];
+            tokens.Add(new Token(
+                subToken,
+                new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
+                referenceOffsets.GetRange(start, charCount),
+                cachedTokens.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
+            ));
+            start += charCount;
+        }
+        cached = true;
+    }
+
+    if (!cached)
+    {
+        var (bpeOutput, charCounts) = bpeFunction(textToProcess, bpeRanks);
+        cache[textToProcess] = (bpeOutput, charCounts);
+        int start = 0;
+        for (int idx = 0; idx < bpeOutput.Count; idx++)
+        {
+            var subToken = bpeOutput[idx];
+            var charCount = charCounts[idx];
+            tokens.Add(new Token(
+                subToken,
+                new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
+                referenceOffsets.GetRange(start, charCount),
+                bpeOutput.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
+            ));
+            start += charCount;
+        }
+    }
+    return tokens;
+}
+
+
+    private static void FixMask(List<Token> tokens)
+    {
+        for (var i = 1; i < tokens.Count; i++)
+        {
+            if (tokens[i].Mask == Mask.Continuation && tokens[i - 1].Mask == Mask.None)
+            {
+                tokens[i - 1].Mask = Mask.Begin;
+            }
+        }
+    }
+
+    public static List<Token> SplitOnLanguageCode(Token token, int codeLength, HashSet<byte[]> languageCodesBytes)
+    {
+        if (Encoding.UTF8.GetByteCount(token.Text) < codeLength)
+        {
+            return new List<Token> { token };
+        }
+
+        var tokens = new List<Token>();
+        int beginChar = 0;
+        int startByte = 0;
+
+        // Skip leading whitespace
+        foreach (var c in token.Text)
+        {
+            if (!char.IsWhiteSpace(c))
+            {
+                break;
+            }
+            startByte += Encoding.UTF8.GetByteCount(new char[] { c });
+            beginChar++;
+        }
+
+        var leadingBytes = Encoding.UTF8.GetBytes(token.Text).Skip(startByte).Take(codeLength).ToArray();
+        if (languageCodesBytes.Contains(leadingBytes))
+        {
+            tokens.Add(new Token(
+                token.Text.Substring(startByte, codeLength),
+                new Offset((uint)token.Offset.Begin + (uint)beginChar, (uint)token.Offset.Begin + (uint)beginChar + (uint)codeLength),
+                token.ReferenceOffsets.Skip(beginChar).Take(codeLength).ToArray(),
+                Mask.Special
+            ));
+
+            startByte += codeLength;
+            beginChar += Encoding.UTF8.GetChars(leadingBytes).Length;
+
+            // Skip whitespace after language code
+            foreach (var c in token.Text.Substring(startByte))
+            {
+                if (!char.IsWhiteSpace(c))
+                {
+                    break;
+                }
+                startByte += Encoding.UTF8.GetByteCount(new char[] { c });
+                beginChar++;
+            }
+        }
+
+        tokens.Add(new Token(
+            token.Text.Substring(startByte),
+            new Offset((uint)token.Offset.Begin + (uint)beginChar, (uint)token.Text.Length),
+            token.ReferenceOffsets.Skip(beginChar).ToArray(),
+            Mask.None
+        ));
+
+        return tokens;
+    }
+
+    public static List<Token> UnknownByteFallback(Token token, IVocab vocab)
+    {
+        if (!vocab.Values.ContainsKey(token.Text))
+        {
+            var updatedTokens = new List<Token>();
+            foreach (var byteValue in Encoding.UTF8.GetBytes(token.Text))
+            {
+                var byteStr = $"<{byteValue:X2}>";
+                updatedTokens.Add(new Token(
+                    byteStr,
+                    new Offset(token.Offset.End, token.Offset.End),
+                    new uint[] { token.ReferenceOffsets.Last() },
+                    token.Mask
+                ));
+            }
+            return updatedTokens;
+        }
+        else
+        {
+            return null;
+        }
+    }
+}

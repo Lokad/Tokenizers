@@ -195,6 +195,14 @@ public class Token : ITokenTrait
         Mask = Mask.None;
     }
 
+    public Token(string text, Offset offset, IReadOnlyList<uint> referenceOffsets, Mask mask)
+    {
+        Text = text;
+        Offset = offset;
+        ReferenceOffsets = referenceOffsets;
+        Mask = mask;
+    }
+
     public string AsStr()
     {
         return Text;
