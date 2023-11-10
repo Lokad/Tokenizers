@@ -140,46 +140,6 @@ public interface ITokenTrait
 }
 
 /// <summary>
-/// Reference token that references the original text, with a string slice representation
-/// </summary>
-public class TokenRef
-{
-    /// <summary>
-    /// String representation
-    /// </summary>
-    public string Text { get; set; }
-
-    /// <summary>
-    /// Start and end positions of the token with respect to the original text
-    /// </summary>
-    public Offset Offset { get; set; }
-
-    /// <summary>
-    /// Sequence of positions with respect to the original text contained in the token.
-    /// For example, if the token offset is `start: 4, end: 10`, corresponding reference_offsets are `[4, 5, 6, 7, 8, 9]`
-    /// </summary>
-    public uint[] ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Mask indicating the type of the token
-    /// </summary>
-    public Mask Mask { get; set; }
-
-    /// <summary>
-    /// Creates a new token reference from a text and list of offsets.
-    /// </summary>
-    /// <param name="text">text reference</param>
-    /// <param name="offsets">reference positions with respect to the original text</param>
-    public TokenRef(string text, uint[] offsets)
-    {
-        Text = text;
-        Offset = new Offset(0, (uint)offsets.Length);
-        ReferenceOffsets = offsets;
-        Mask = Mask.None;
-    }
-}
-
-/// <summary>
 /// Owned token that references the original text but stores its own string representation.
 /// </summary>
 public class Token : ITokenTrait
@@ -239,6 +199,46 @@ public class Token : ITokenTrait
     }
 }
 
+
+/// <summary>
+/// Reference token that references the original text, with a string slice representation
+/// </summary>
+public class TokenRef
+{
+    /// <summary>
+    /// String representation
+    /// </summary>
+    public string Text { get; set; }
+
+    /// <summary>
+    /// Start and end positions of the token with respect to the original text
+    /// </summary>
+    public Offset Offset { get; set; }
+
+    /// <summary>
+    /// Sequence of positions with respect to the original text contained in the token.
+    /// For example, if the token offset is `start: 4, end: 10`, corresponding reference_offsets are `[4, 5, 6, 7, 8, 9]`
+    /// </summary>
+    public uint[] ReferenceOffsets { get; set; }
+
+    /// <summary>
+    /// Mask indicating the type of the token
+    /// </summary>
+    public Mask Mask { get; set; }
+
+    /// <summary>
+    /// Creates a new token reference from a text and list of offsets.
+    /// </summary>
+    /// <param name="text">text reference</param>
+    /// <param name="offsets">reference positions with respect to the original text</param>
+    public TokenRef(string text, uint[] offsets)
+    {
+        Text = text;
+        Offset = new Offset(0, (uint)offsets.Length);
+        ReferenceOffsets = offsets;
+        Mask = Mask.None;
+    }
+}
 
 
 /// <summary>
