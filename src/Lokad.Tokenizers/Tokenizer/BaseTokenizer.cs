@@ -212,6 +212,11 @@ public class Token : ITokenTrait
     {
         return new Token(text);
     }
+
+    public Token Clone()
+    {
+        return new Token(Text, Offset, new List<uint>(ReferenceOffsets), Mask);
+    }
 }
 
 

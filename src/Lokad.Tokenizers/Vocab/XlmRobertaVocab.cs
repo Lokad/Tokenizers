@@ -17,6 +17,54 @@ public class XlmRobertaVocab : BaseVocab
     {
     }
 
+    /// <summary>
+    /// Gets the PAD token value.
+    /// </summary>
+    public string GetPadValue()
+    {
+        return SpecialTokenMap.PadToken ?? DefaultPadToken;
+    }
+
+    /// <summary>
+    /// Gets the BOS (Beginning of Sentence) token value.
+    /// </summary>
+    public string GetBosValue()
+    {
+        return SpecialTokenMap.BosToken ?? DefaultBosToken;
+    }
+
+    /// <summary>
+    /// Gets the SEP (Separator) token value.
+    /// </summary>
+    public string GetSepValue()
+    {
+        return SpecialTokenMap.SepToken ?? DefaultSepToken;
+    }
+
+    /// <summary>
+    /// Gets the CLS (Classification) token value.
+    /// </summary>
+    public string GetClsValue()
+    {
+        return SpecialTokenMap.ClsToken ?? DefaultClsToken;
+    }
+
+    /// <summary>
+    /// Gets the EOS (End of Sentence) token value.
+    /// </summary>
+    public string GetEosValue()
+    {
+        return SpecialTokenMap.EosToken ?? DefaultEosToken;
+    }
+
+    /// <summary>
+    /// Gets the MASK token value.
+    /// </summary>
+    public string GetMaskValue()
+    {
+        return SpecialTokenMap.MaskToken ?? DefaultMaskToken;
+    }
+
     public static XlmRobertaVocab FromFile(string path)
     {
         var proto = VocabHelper.OpenProtobufFile(path);
@@ -55,4 +103,38 @@ public class XlmRobertaVocab : BaseVocab
             values.Add(token, values.Count);
         }
     }
+
+    public static XlmRobertaVocab FromFileWithSpecialTokenMapping(string path, string specialTokenMappingPath)
+    {
+        var proto = VocabHelper.OpenProtobufFile(path);
+        var specialTokenMap = VocabHelper.ReadSpecialTokenMappingFile(specialTokenMappingPath);
+
+        var values = new Dictionary<string, long>();
+
+        // Add special tokens to values dictionary
+        AddSpecialTokenIfPresent(values, specialTokenMap.ClsToken);
+        AddSpecialTokenIfPresent(values, specialTokenMap.PadToken);
+        AddSpecialTokenIfPresent(values, specialTokenMap.EosToken);
+        AddSpecialTokenIfPresent(values, specialTokenMap.UnkToken);
+
+        foreach (var piece in proto.Pieces.Skip(3))
+        {
+            values.Add(piece.Piece, values.Count);
+        }
+
+        AddSpecialTokenIfPresent(values, specialTokenMap.MaskToken);
+
+        return new XlmRobertaVocab(values, specialTokenMap);
+    }
+
+    // Helper method to add special token if present
+    private static void AddSpecialTokenIfPresent(Dictionary<string, long> values, string token)
+    {
+        if (token != null && !values.ContainsKey(token))
+        {
+            values.Add(token, values.Count);
+        }
+    }
+
+
 }
