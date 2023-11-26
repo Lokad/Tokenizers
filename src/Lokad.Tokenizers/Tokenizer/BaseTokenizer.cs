@@ -1,4 +1,6 @@
-﻿using Lokad.Tokenizers.Vocab;
+﻿using System.Dynamic;
+using System.Text;
+using Lokad.Tokenizers.Vocab;
 using System.Text.RegularExpressions;
 
 // TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
@@ -41,7 +43,7 @@ public enum TruncationStrategy
 /// <summary>
 /// Offset information (in unicode points) to relate a token back to its original input string
 /// </summary>
-public class Offset
+public class Offset : IEquatable<Offset>
 {
     public uint Begin { get; set; }
     public uint End { get; set; }
@@ -68,6 +70,61 @@ public class Offset
         {
             return null;
         }
+    }
+
+    public override String ToString() => $"({Begin}:{End})";
+
+    public bool Equals(Offset? other)
+    {
+        if (ReferenceEquals(null, other))
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
+        return Begin == other.Begin && End == other.End;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (ReferenceEquals(null, obj))
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, obj))
+        {
+            return true;
+        }
+
+        if (obj.GetType() != this.GetType())
+        {
+            return false;
+        }
+
+        return Equals((Offset)obj);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            return ((int)Begin * 397) ^ (int)End;
+        }
+    }
+
+    public static bool operator ==(Offset? left, Offset? right)
+    {
+        return Equals(left, right);
+    }
+
+    public static bool operator !=(Offset? left, Offset? right)
+    {
+        return !Equals(left, right);
     }
 }
 
@@ -558,7 +615,7 @@ public class BaseTokenizer<T> where T : IVocab
     /// </summary>
     /// <param name="initialToken">Token to tokenize (this is especially useful for nested tokenization, where a tokenizer is called on the ouput of a pre-tokenizer, such as BERT).</param>
     /// <returns>`List<Token>` tokenization of the original `Token`</returns>
-    public List<Token> TokenizeToTokens(Token initialToken)
+    public virtual List<Token> TokenizeToTokens(Token initialToken)
     {
         //split on whitespace
         var tokens = WhitespaceTokenize(initialToken)
@@ -617,6 +674,84 @@ public class BaseTokenizer<T> where T : IVocab
     public List<long> ConvertTokensToIds(List<string> tokens)
     {
         return tokens.Select(token => _vocab.TokenToId(token)).ToList();
+    }
+
+    public TokenizedInput Encode(XLMRobertaTokenizer tokenizer, String text1, String? text2, int maxLen, TruncationStrategy truncationStrategy,
+        int stride)
+    {
+        var tokens = TokenizeWithOffsets(text1.Normalize());
+        var token_ids_1 = ConvertTokensToIds(tokens.Tokens);
+        var len_1 = token_ids_1.Count;
+
+        var token_ids_with_offsets_1 = new TokenIdsWithOffsets
+        {
+            Ids = token_ids_1,
+            Offsets = tokens.Offsets,
+            ReferenceOffsets = tokens.ReferenceOffsets.Select(_ => _.ToList()).ToList(),
+            Masks = tokens.Masks,
+        };
+
+        //let (token_ids_with_offsets_2, len_2) = {
+        //    if let Some(text) = text_2 {
+        //        let tokens_2 = self.tokenize_with_offsets(text);
+        //        let token_ids_2: Vec<i64> = self.convert_tokens_to_ids(&tokens_2.tokens);
+        //        let len_2 = token_ids_2.len();
+        //        (
+        //            Some(TokenIdsWithOffsets {
+        //            ids: token_ids_2,
+        //            offsets: tokens_2.offsets,
+        //            reference_offsets: tokens_2.reference_offsets,
+        //            masks: tokens_2.masks,
+        //        }),
+        //        len_2,
+
+        //            )
+        //    } else {
+        //        (None, 0)
+        //    }
+        //};
+
+        //let additional_tokens = self.build_input_with_special_tokens(
+        //    TokenIdsWithOffsets {
+        //    ids: vec![],
+        //    offsets: vec![],
+        //    reference_offsets: vec![],
+        //    masks: vec![],
+        //},
+        //if token_ids_with_offsets_2.is_some() {
+        //    Some(TokenIdsWithOffsets {
+        //        ids: vec![],
+        //        offsets: vec![],
+        //        reference_offsets: vec![],
+        //        masks: vec![],
+        //    })
+        //} else {
+        //    None
+        //},
+        //);
+
+        var total_len = len_1; // + len_2 + additional_tokens.token_ids.len();
+        var num_truncated_tokens = total_len > maxLen ? total_len - maxLen : 0;
+
+        var (token_ids_with_offsets_1_x, token_ids_with_offsets_2, overflowing_tokens, _overflowing_offsets) =
+            TokenizationUtils.TruncateSequences(token_ids_with_offsets_1, null /*token_ids_with_offsets_2*/,
+                num_truncated_tokens, truncationStrategy, stride);
+        token_ids_with_offsets_1 = token_ids_with_offsets_1_x;
+
+        var merged_tokenized_input =
+            tokenizer.BuildInputWithSpecialTokens(token_ids_with_offsets_1, token_ids_with_offsets_2);
+
+        return new TokenizedInput()
+        {
+            TokenIds = merged_tokenized_input.TokenIds,
+            SegmentIds = merged_tokenized_input.SegmentIds,
+            SpecialTokensMask = merged_tokenized_input.SpecialTokensMask,
+            OverflowingTokens = overflowing_tokens, 
+            NumTruncatedTokens = num_truncated_tokens,
+            TokenOffsets = merged_tokenized_input.TokenOffsets,
+            ReferenceOffsets = merged_tokenized_input.ReferenceOffsets,
+            Mask = merged_tokenized_input.Mask
+        };
     }
 
     /// <summary>
@@ -685,7 +820,7 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-    private static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
+    protected static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
     {
         var tokens = new List<Token>();
         var text = token.Text;

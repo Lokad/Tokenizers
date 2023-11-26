@@ -183,7 +183,7 @@ public class BaseVocab : IVocab
 
     public long TokenToId(string token)
     {
-        if (SpecialValues.TryGetValue(token, out long id))
+        if (SpecialValues.TryGetValue(token, out var id))
             return id;
         return Values.TryGetValue(token, out id) ? id : Values[GetUnknownValue()];
     }
