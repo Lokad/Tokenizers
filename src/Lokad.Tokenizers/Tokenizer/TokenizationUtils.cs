@@ -9,6 +9,32 @@ namespace Lokad.Tokenizers.Tokenizer;
 
 public static class TokenizationUtils
 {
+
+    // Get LengthInTextElements
+    public static int GetLengthInTextElements(string text)
+    {
+        var stringInfo = new System.Globalization.StringInfo(text);
+        return stringInfo.LengthInTextElements;
+    }
+
+    // Get UTF 8 Bytes
+    public static byte[] GetUtf8Bytes(string text)
+    {
+        return Encoding.UTF8.GetBytes(text);
+    }
+
+    // Get UTF 8 Chars
+    public static char[] GetUtf8Chars(byte[] bytes)
+    {
+        return Encoding.UTF8.GetChars(bytes);
+    }
+
+    // Get UTF 8 Bytes Count
+    public static int GetUtf8BytesCount(string text)
+    {
+        return Encoding.UTF8.GetByteCount(text);
+    }
+
     /// <summary>
     /// Cleans text by removing control characters and normalizing whitespace
     /// </summary>
@@ -21,7 +47,7 @@ public static class TokenizationUtils
         {
             if (IsControl(character, strict) || character == '\x00' || character == '\uFFFD')
             {
-                continue;
+                //continue;
             }
 
             cleanedString.Append(IsWhitespace(character) ? ' ' : character);
@@ -248,7 +274,7 @@ public static class TokenizationUtils
     /// <summary>
     /// NFKC decomposition
     /// </summary>
-    public static void DecomposeNfkc(Token token)
+    public static void DecomposeNfkcV0(Token token)
     {
         var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
         var decomposedString = new StringBuilder(normalizedString.Length);
@@ -276,6 +302,67 @@ public static class TokenizationUtils
         token.Text = decomposedString.ToString();
         token.ReferenceOffsets = characterMapping;
         token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
+    }
+
+    public static void DecomposeNfkc(Token token)
+    {
+        int capacity = Encoding.UTF8.GetByteCount(token.Text);
+        StringBuilder decomposedString = new StringBuilder(capacity);
+        List<uint> characterMapping = new List<uint>(capacity);
+        int curPosition = 0;
+        string normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
+        //var normalizedBytes = Encoding.UTF8.GetBytes(normalizedString, 0, normalizedString.Length);
+        //var normalizedChars = Encoding.UTF8.GetChars(normalizedBytes);
+
+        foreach (char character in normalizedString)
+        {
+            var extraCharSize = -1 * (Encoding.UTF8.GetByteCount(new Char[] { character }) - 1);
+            decomposedString.Append(character);
+            if (extraCharSize > 0)
+            {
+                curPosition -= extraCharSize;
+            }
+            // Assuming each character in the normalized string maps to one character in the original string
+            if (curPosition < token.ReferenceOffsets.Count)
+            {
+                characterMapping.Add(token.ReferenceOffsets[curPosition]);
+            }
+            else
+            {
+                // Handle cases where normalization adds characters
+                characterMapping.Add(token.ReferenceOffsets.LastOrDefault());
+            }
+            if (extraCharSize < 0)
+            {
+                curPosition -= extraCharSize;
+            }
+            curPosition += 1; // Adjust based on Unicode character width if needed
+        }
+
+        token.Text = decomposedString.ToString();//.Normalize(NormalizationForm.FormKC);
+        token.ReferenceOffsets = characterMapping;
+        token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
+        token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
+    }
+
+    public static void DecomposeNfkcV1(Token token)
+    {
+        int capacity = token.Text.Length;
+        StringBuilder decomposedString = new StringBuilder(capacity);
+        List<uint> characterMapping = new List<uint>(capacity);
+        int curPosition = 0;
+
+        foreach (char character in token.Text/*.Normalize(NormalizationForm.FormC)*/)
+        {
+            decomposedString.Append(character);
+            characterMapping.Add(token.ReferenceOffsets[curPosition]);
+            curPosition += 1; // Adjust based on Unicode character width if needed
+        }
+
+        token.Text = decomposedString.ToString().Normalize(NormalizationForm.FormKC);
+        token.ReferenceOffsets = characterMapping;
+        token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
+        token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
     }
 
     /// <summary>
@@ -1062,72 +1149,72 @@ public static class TokenizationUtils
     }
 
     public static List<Token> SplitOnBpePairs(
-        Token token, 
-        Func<string, Dictionary<(string, string), long>, (List<string>, List<int>)> bpeFunction, 
-        Dictionary<(string, string), long> bpeRanks, 
-        Dictionary<string, (List<string>, List<int>)> cache, 
+        Token token,
+        Func<string, Dictionary<(string, string), long>, (List<string>, List<int>)> bpeFunction,
+        Dictionary<(string, string), long> bpeRanks,
+        Dictionary<string, (List<string>, List<int>)> cache,
         bool asBytes)
-{
-    var tokens = new List<Token>();
-    string textToProcess;
-    List<uint> referenceOffsets;
+    {
+        var tokens = new List<Token>();
+        string textToProcess;
+        List<uint> referenceOffsets;
 
-    if (asBytes)
-    {
-        // Convert the string to bytes and then map each byte to a character
-        var bytes = Encoding.UTF8.GetBytes(token.Text);
-        var referenceOffsetsPlaceholder = BytesOffsets(token.Text)
-            .Select(pos => token.ReferenceOffsets[pos])
-            .ToList();
-        textToProcess = new string(bytes.Select(b => Constants.BytesToUnicode[b]).ToArray());
-        referenceOffsets = referenceOffsetsPlaceholder;
-    }
-    else
-    {
-        textToProcess = token.Text;
-        referenceOffsets = token.ReferenceOffsets.ToList();
-    }
-
-    bool cached = false;
-    if (cache.TryGetValue(textToProcess, out var cacheValue))
-    {
-        var (cachedTokens, charCounts) = cacheValue;
-        int start = 0;
-        for (int idx = 0; idx < cachedTokens.Count; idx++)
+        if (asBytes)
         {
-            var subToken = cachedTokens[idx];
-            var charCount = charCounts[idx];
-            tokens.Add(new Token(
-                subToken,
-                new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
-                referenceOffsets.GetRange(start, charCount),
-                cachedTokens.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
-            ));
-            start += charCount;
+            // Convert the string to bytes and then map each byte to a character
+            var bytes = Encoding.UTF8.GetBytes(token.Text);
+            var referenceOffsetsPlaceholder = BytesOffsets(token.Text)
+                .Select(pos => token.ReferenceOffsets[pos])
+                .ToList();
+            textToProcess = new string(bytes.Select(b => Constants.BytesToUnicode[b]).ToArray());
+            referenceOffsets = referenceOffsetsPlaceholder;
         }
-        cached = true;
-    }
-
-    if (!cached)
-    {
-        var (bpeOutput, charCounts) = bpeFunction(textToProcess, bpeRanks);
-        cache[textToProcess] = (bpeOutput, charCounts);
-        int start = 0;
-        for (int idx = 0; idx < bpeOutput.Count; idx++)
+        else
         {
-            var subToken = bpeOutput[idx];
-            var charCount = charCounts[idx];
-            tokens.Add(new Token(
-                subToken,
-                new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
-                referenceOffsets.GetRange(start, charCount),
-                bpeOutput.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
-            ));
-            start += charCount;
+            textToProcess = token.Text;
+            referenceOffsets = token.ReferenceOffsets.ToList();
         }
+
+        bool cached = false;
+        if (cache.TryGetValue(textToProcess, out var cacheValue))
+        {
+            var (cachedTokens, charCounts) = cacheValue;
+            int start = 0;
+            for (int idx = 0; idx < cachedTokens.Count; idx++)
+            {
+                var subToken = cachedTokens[idx];
+                var charCount = charCounts[idx];
+                tokens.Add(new Token(
+                    subToken,
+                    new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
+                    referenceOffsets.GetRange(start, charCount),
+                    cachedTokens.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
+                ));
+                start += charCount;
+            }
+            cached = true;
+        }
+
+        if (!cached)
+        {
+            var (bpeOutput, charCounts) = bpeFunction(textToProcess, bpeRanks);
+            cache[textToProcess] = (bpeOutput, charCounts);
+            int start = 0;
+            for (int idx = 0; idx < bpeOutput.Count; idx++)
+            {
+                var subToken = bpeOutput[idx];
+                var charCount = charCounts[idx];
+                tokens.Add(new Token(
+                    subToken,
+                    new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
+                    referenceOffsets.GetRange(start, charCount),
+                    bpeOutput.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
+                ));
+                start += charCount;
+            }
+        }
+        return tokens;
     }
-    return tokens;
-}
 
 
     private static void FixMask(List<Token> tokens)

@@ -2,6 +2,8 @@
 using System.Text;
 using Lokad.Tokenizers.Vocab;
 using System.Text.RegularExpressions;
+using System.Linq;
+using System.Reflection;
 
 // TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
 // TODO: unit tests not ported
@@ -433,7 +435,7 @@ public interface ITokenizer<T> where T : IVocab
     /// <summary>
     /// Returns a reference to the tokenizer vocabulary
     /// </summary>
-    T Vocab { get;  }
+    T Vocab { get; }
 
     /// <summary>
     /// Tokenize a string, returns a vector of tokens as strings.
@@ -666,6 +668,65 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
+    //public virtual List<Token> TokenizeToTokens(Token initialToken)
+    //{
+    //    List<Token> tokens = SplitOnSpecialTokens(initialToken, this.Vocab)
+    //                         .ToList();
+
+    //    List<Token> subTokens = new List<Token>();
+    //    foreach (var token in tokens)
+    //    {
+    //        if (token.Mask != Mask.Special && token.Mask != Mask.Unknown)
+    //        {
+    //            CleanText(token, true);
+    //            DecomposeNfkc(token);
+    //            if (this._lowerCase)
+    //            {
+    //                Lowercase(token);
+    //            }
+    //            token.Text = new string(token.Text.Select(c => char.IsWhiteSpace(c) ? '\u2581' : c).ToArray());
+    //            if (!token.Text.StartsWith("\u2581"))
+    //            {
+    //                token.Text = "\u2581" + token.Text;
+    //                //token.ReferenceOffsets.Insert(0, 0);
+    //            }
+    //            var output = model.DecodeForwardTokenRef(token);
+    //            var decoded = model.DecodeBackward(output);
+
+    //            var outputTokens = model.ParseNodesToTokens(decoded);
+    //            subTokens.AddRange(outputTokens);
+    //        }
+    //        else
+    //        {
+    //            subTokens.Add(new Token(token.Text) { Mask = token.Mask, ReferenceOffsets = token.ReferenceOffsets.ToList() });
+    //        }
+    //    }
+    //    return subTokens;
+    //}
+
+    public void DecomposeNfkc(Token token)
+    {
+        // Perform NFKC normalization on the token text
+        string decomposedText = token.Text.Normalize(NormalizationForm.FormKC);
+
+        // Calculate the new reference offsets
+        List<uint> newReferenceOffsets = new List<uint>();
+        uint currentOffset = 0;
+        for (int i = 0; i < decomposedText.Length; i++)
+        {
+            // Assuming the original text was decomposed into single characters
+            // Adjust the offset accordingly
+            newReferenceOffsets.Add(currentOffset);
+            currentOffset += (uint)decomposedText[i].ToString().Length;
+        }
+
+        // Update the token's properties
+        token.Text = decomposedText;
+        token.ReferenceOffsets = newReferenceOffsets;
+        token.Offset.Begin = newReferenceOffsets.FirstOrDefault();
+        token.Offset.End = newReferenceOffsets.LastOrDefault() + 1;
+    }
+
     /// <summary>
     /// Convert a slice of string-like to a vector ot token indices
     /// </summary>
@@ -679,7 +740,7 @@ public class BaseTokenizer<T> where T : IVocab
     public TokenizedInput Encode(XLMRobertaTokenizer tokenizer, String text1, String? text2, int maxLen, TruncationStrategy truncationStrategy,
         int stride)
     {
-        var tokens = TokenizeWithOffsets(text1.Normalize());
+        var tokens = TokenizeWithOffsets(text1/*.Normalize()*/);
         var token_ids_1 = ConvertTokensToIds(tokens.Tokens);
         var len_1 = token_ids_1.Count;
 
@@ -746,7 +807,7 @@ public class BaseTokenizer<T> where T : IVocab
             TokenIds = merged_tokenized_input.TokenIds,
             SegmentIds = merged_tokenized_input.SegmentIds,
             SpecialTokensMask = merged_tokenized_input.SpecialTokensMask,
-            OverflowingTokens = overflowing_tokens, 
+            OverflowingTokens = overflowing_tokens,
             NumTruncatedTokens = num_truncated_tokens,
             TokenOffsets = merged_tokenized_input.TokenOffsets,
             ReferenceOffsets = merged_tokenized_input.ReferenceOffsets,
@@ -820,7 +881,7 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-    protected static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
+    protected static List<Token> SplitOnSpecialTokensV0(Token token, IVocab vocab)
     {
         var tokens = new List<Token>();
         var text = token.Text;
@@ -854,6 +915,102 @@ public class BaseTokenizer<T> where T : IVocab
         }
         return tokens;
     }
+
+    protected static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
+    {
+
+        Func<string, (int, int, Mask)> testSubstr = (s) =>
+        {
+            foreach (var specialValue in vocab.SpecialValues.Keys)
+            {
+                if (s.StartsWith(specialValue))
+                {
+                    return (
+                        specialValue.Length,
+                        specialValue.ToCharArray().Count(),
+                        vocab.GetUnknownValue() == specialValue ? Mask.Unknown : Mask.Special
+                    );
+                }
+            }
+            return (0, 0, Mask.None);
+        };
+        return SplitOnSubstr(token, testSubstr, true);
+    }
+
+    public static List<Token> SplitOnSubstr(Token token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
+    {
+        List<Token> tokens = new List<Token>();
+        int charBegin = 0;
+        int bytesBegin = 0;
+        int charCount = 0;
+
+        if (token.Mask == Mask.None)
+        {
+            var utf8Bytes = TokenizationUtils.GetUtf8Bytes(token.Text);
+            var utf8Chars = TokenizationUtils.GetUtf8Chars(utf8Bytes);
+            var elementsLength = TokenizationUtils.GetLengthInTextElements(token.Text);
+            // Don't process a token that already got marked in the mask
+            // Iterate over all characters, returning the byte position with each
+            for (int charIdx = 0; charIdx < token.Text.Length; charIdx++)
+            {
+                charCount++;
+                (int matchedBytes, int matchedChars, Mask setMask) = testSubstr(token.Text.Substring(charIdx));
+                if (matchedChars > 0)
+                {
+                    if (charBegin < charIdx)
+                    {
+                        // Add previous token
+                        string trimmedText = token.Text.Substring(bytesBegin, bytesBegin + (charIdx - bytesBegin)).TrimEnd();
+                        int trimmedTextLen = trimmedText.Length;
+                        if (trimmedTextLen > 0)
+                        {
+                            tokens.Add(new Token(trimmedText)
+                            {
+                                Text = trimmedText,
+                                Offset = new Offset((uint)(token.Offset.Begin + charBegin), (uint)(token.Offset.Begin + (charBegin + trimmedTextLen))),
+                                ReferenceOffsets = token.ReferenceOffsets.Skip(charBegin).Take(trimmedTextLen).ToArray(),
+                                Mask = Mask.None
+                            });
+                        }
+                    }
+                    if (addSeparators)
+                    {
+                        // Add separator as a singleton token
+                        tokens.Add(new Token(token.Text.Substring(charIdx, matchedBytes))
+                        {
+                            Text = token.Text.Substring(charIdx, matchedBytes),
+                            Offset = new Offset((uint)(token.Offset.Begin + charIdx), (uint)(token.Offset.Begin + (charIdx + matchedChars))),
+                            ReferenceOffsets = token.ReferenceOffsets.Skip(charIdx).Take(matchedChars).ToArray(),
+                            Mask = setMask
+                        });
+                    }
+                    // Reset
+                    charBegin = charIdx + matchedChars;
+                    bytesBegin = charIdx + matchedBytes;
+                }
+            }
+        }
+        if (bytesBegin < token.Text.Length)
+        {
+            // Add last buffered token if there is anything left
+            int bytesIdx = token.Text.Length;
+            string text = token.Text.Substring(bytesBegin, bytesIdx - bytesBegin);
+            if (charCount == 0)
+            {
+                charCount = TokenizationUtils.GetLengthInTextElements(token.Text);
+            }
+            tokens.Add(new Token(text)
+            {
+                Text = text,
+                Offset = new Offset((uint)(token.Offset.Begin + charBegin), (uint)(token.Offset.Begin + charCount)),
+                ReferenceOffsets = token.ReferenceOffsets.Skip(charBegin).Take(charCount).ToArray(),
+                Mask = Mask.None
+            });
+        }
+        return tokens;
+    }
+
+
 
     private static List<Token> SplitOnPunct(Token token)
     {
@@ -970,4 +1127,33 @@ public class BaseTokenizer<T> where T : IVocab
         }
         return tokens;
     }
+}
+
+public interface IMultiThreadedTokenizer<T> where T : IVocab
+{
+    T Vocab();
+
+    List<TokensWithOffsets> TokenizeListWithOffsets(string[] textList);
+
+    List<List<string>> TokenizeList(string[] textList);
+
+    List<TokenizedInput> EncodeList(
+        string[] textList,
+        int maxLen,
+        TruncationStrategy truncationStrategy,
+        int stride
+    );
+
+    List<TokenizedInput> EncodePairList(
+        Tuple<string, string>[] textList,
+        int maxLen,
+        TruncationStrategy truncationStrategy,
+        int stride
+    );
+
+    List<string> DecodeList(
+        List<List<long>> tokenIdsList,
+        bool skipSpecialTokens,
+        bool cleanUpTokenizationSpaces
+    );
 }
