@@ -77,9 +77,9 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 
                 // Manually replacing whitespace characters
                 var newText = new StringBuilder();
-                foreach (var c in token.Text)
+                foreach (var c in token.Text.EnumerateRunes())
                 {
-                    newText.Append(TokenizationUtils.IsWhitespace(c) ? "\u2581" : c.ToString());
+                    newText.Append(TokenizationUtils.IsWhitespace(c) ? new Rune('\u2581') : c.ToString());
                 }
                 token.Text = newText.ToString();
 

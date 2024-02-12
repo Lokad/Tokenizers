@@ -1,6 +1,7 @@
 ﻿using System.Text.RegularExpressions;
 using System.Text;
 using Lokad.Tokenizers.Vocab;
+using System.Globalization;
 
 namespace Lokad.Tokenizers.Tokenizer;
 
@@ -9,12 +10,40 @@ namespace Lokad.Tokenizers.Tokenizer;
 
 public static class TokenizationUtils
 {
+    // Substring Runes (characters)
+    public static string SubstringRunes(string text, int start, int end)
+    {
+        var sb = new StringBuilder();
+        text.EnumerateRunes().Skip(start).Take(end - start).ToList().ForEach(r => sb.Append(r));
+        return sb.ToString();
+    }
+
+    public static string SubstringRunes(string text, int start)
+    {
+        var sb = new StringBuilder();
+        text.EnumerateRunes().Skip(start).ToList().ForEach(r => sb.Append(r));
+        return sb.ToString();
+    }
+
+
+
+
+    // Get string Runes (characters)
+    public static StringRuneEnumerator GetStringRuneEnumerator(string text)
+    {
+        return text.EnumerateRunes();
+    }
+
+    // Get LengthInTextElements
+    public static StringInfo GetStringInfo(string text)
+    {
+        return new System.Globalization.StringInfo(text);
+    }
 
     // Get LengthInTextElements
     public static int GetLengthInTextElements(string text)
     {
-        var stringInfo = new System.Globalization.StringInfo(text);
-        return stringInfo.LengthInTextElements;
+        return GetStringInfo(text).LengthInTextElements;
     }
 
     // Get UTF 8 Bytes
@@ -35,6 +64,51 @@ public static class TokenizationUtils
         return Encoding.UTF8.GetByteCount(text);
     }
 
+    public static IEnumerable<(int Index, char Character)> CharIndices(string str)
+    {
+        int index = 0;
+        foreach (char character in str)
+        {
+            yield return (index, character);
+            index += GetUtf8BytesCount(character.ToString());
+        }
+    }
+
+    public static IEnumerable<(int Index, string Character)> CharIndicesForTextElements(string str)
+    {
+        int index = 0;
+        var strInfo = GetStringInfo(str);
+        for (int i = 0; i < strInfo.LengthInTextElements; i++)
+        {
+            var c = strInfo.SubstringByTextElements(i, 1);
+            yield return (index, c);
+            //index += GetUtf8BytesCount(strInfo.SubstringByTextElements(i, 1));
+            index++;
+        }
+    }
+
+    public static IEnumerable<(int Index, Rune Character)> CharIndicesForRunes(string str)
+    {
+        int index = 0;
+        var runes = str.EnumerateRunes();
+        for (int i = 0; i < runes.Count(); i++)
+        {
+            var c = runes.ElementAt(i);
+            yield return (index, c);
+            //index += GetUtf8BytesCount(strInfo.SubstringByTextElements(i, 1));
+            index++;
+        }
+    }
+
+    public static IEnumerable<(int Index, T Element)> Enumerate<T>(IEnumerable<T> source)
+    {
+        int index = 0;
+        foreach (var element in source)
+        {
+            yield return (index++, element);
+        }
+    }
+
     /// <summary>
     /// Cleans text by removing control characters and normalizing whitespace
     /// </summary>
@@ -43,11 +117,11 @@ public static class TokenizationUtils
         var cleanedString = new StringBuilder(token.Text.Length);
         var characterMapping = new List<uint>(token.Text.Length);
 
-        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
+        foreach (var (character, position) in token.Text.EnumerateRunes().Zip(token.ReferenceOffsets))
         {
-            if (IsControl(character, strict) || character == '\x00' || character == '\uFFFD')
+            if (IsControl(character, strict) || character == new Rune('\x00') || character == new Rune('\uFFFD'))
             {
-                //continue;
+                continue;
             }
 
             cleanedString.Append(IsWhitespace(character) ? ' ' : character);
@@ -171,6 +245,11 @@ public static class TokenizationUtils
         return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character));
     }
 
+    public static bool IsWhitespace(Rune character)
+    {
+        return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character.Value));
+    }
+
     /// <summary>
     /// This is a custom method to check if a character is a control character. The BERT tokenizer is
     /// taking any character whose unicode category starts with `C` as a control character, which includes
@@ -203,6 +282,33 @@ public static class TokenizationUtils
         else
         {
             return char.IsControl(character);
+        }
+    }
+
+    public static bool IsControl(Rune character, bool strict)
+    {
+        if (Constants.AdditionalWhitespaceChars.Select(c => new Rune(c)).Contains(character))
+        {
+            return false;
+        }
+
+        if (strict)
+        {
+            var u32Char = Convert.ToUInt32(character.Value);
+            return (u32Char <= 0x001F)
+                || (0x0080 <= u32Char && u32Char <= 0x009F)
+                || (0xE0020 <= u32Char && u32Char <= 0xE007F)
+                || (0xE000 <= u32Char && u32Char <= 0xF8FF)
+                || (0xF0000 <= u32Char && u32Char <= 0xFFFFD)
+                || (0x100000 <= u32Char && u32Char <= 0x10FFFD)
+                || (0xD800 <= u32Char && u32Char <= 0xDB7F)
+                || (0xDB80 <= u32Char && u32Char <= 0xDBFF)
+                || (0xDC00 <= u32Char && u32Char <= 0xDFFF)
+                || Constants.ControlChars.Contains(u32Char);
+        }
+        else
+        {
+            return Rune.IsControl(character);
         }
     }
 
@@ -314,9 +420,9 @@ public static class TokenizationUtils
         //var normalizedBytes = Encoding.UTF8.GetBytes(normalizedString, 0, normalizedString.Length);
         //var normalizedChars = Encoding.UTF8.GetChars(normalizedBytes);
 
-        foreach (char character in normalizedString)
+        foreach (var (i, character) in TokenizationUtils.CharIndicesForRunes(normalizedString))
         {
-            var extraCharSize = -1 * (Encoding.UTF8.GetByteCount(new Char[] { character }) - 1);
+            var extraCharSize = -1 * (Encoding.UTF8.GetByteCount(new Char[] { (char)character.Value }) - 1);
             decomposedString.Append(character);
             if (extraCharSize > 0)
             {

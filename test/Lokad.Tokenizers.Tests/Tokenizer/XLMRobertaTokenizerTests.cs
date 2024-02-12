@@ -112,8 +112,8 @@ public class XLMRobertaTokenizerTests
         var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
-        Assert.Equal(expected_result.TokenIds, result.TokenIds);
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
     }
 
     [Fact]
@@ -155,8 +155,8 @@ public class XLMRobertaTokenizerTests
         var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
-        Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
         Assert.Equal(expected_result.TokenIds, result.TokenIds);
+        Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
     }
 
     [Fact]
@@ -179,6 +179,40 @@ public class XLMRobertaTokenizerTests
                 new Offset( 0, 2 ),
                 new Offset( 2, 3 ),
                 new Offset( 3, 4 ),
+              null,
+            },
+            ReferenceOffsets = new List<List<uint>>(),
+            Mask = new List<Mask> { }
+        };
+
+        // When
+        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+
+        // Then
+        Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
+    }
+
+    [Fact]
+    public async Task Test3_2()
+    {
+        // Given
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var original_string = " 🤔 ?";
+
+        var expected_result = new TokenizedInput
+        {
+            TokenIds = new List<long> { 0, 6, 243691, 705, 2 },
+            SegmentIds = new List<byte> { },
+            SpecialTokensMask = new List<byte> { },
+            OverflowingTokens = new List<long>(),
+            NumTruncatedTokens = 0,
+            TokenOffsets = new List<Offset?> {
+              null,
+                new Offset( 0, 1 ),
+                new Offset( 1, 2 ),
+                new Offset( 2, 4 ),
               null,
             },
             ReferenceOffsets = new List<List<uint>>(),
