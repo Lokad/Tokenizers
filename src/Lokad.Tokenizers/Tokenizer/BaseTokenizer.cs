@@ -588,7 +588,7 @@ public class BaseTokenizer<T> where T : IVocab
             };
         }
 
-        var initialOffsets = Enumerable.Range(0, text.Length).Select(i => (uint)i).ToArray();
+        var initialOffsets = Enumerable.Range(0, text.EnumerateRunes().Count()).Select(i => (uint)i).ToArray();
         var initialToken = new Token(text, initialOffsets);
         var tokens = TokenizeToTokens(initialToken);
         var length = tokens.Count;
@@ -621,6 +621,7 @@ public class BaseTokenizer<T> where T : IVocab
     /// <returns>`List<Token>` tokenization of the original `Token`</returns>
     public virtual List<Token> TokenizeToTokens(Token initialToken)
     {
+        throw new NotImplementedException();
         //split on whitespace
         var tokens = WhitespaceTokenize(initialToken)
             .SelectMany(token =>
@@ -742,7 +743,7 @@ public class BaseTokenizer<T> where T : IVocab
     public TokenizedInput Encode(XLMRobertaTokenizer tokenizer, String text1, String? text2, int maxLen, TruncationStrategy truncationStrategy,
         int stride)
     {
-        var tokens = TokenizeWithOffsets(text1/*.Normalize()*/);
+        var tokens = TokenizeWithOffsets(text1);
         var token_ids_1 = ConvertTokensToIds(tokens.Tokens);
         var len_1 = token_ids_1.Count;
 
@@ -754,44 +755,6 @@ public class BaseTokenizer<T> where T : IVocab
             Masks = tokens.Masks,
         };
 
-        //let (token_ids_with_offsets_2, len_2) = {
-        //    if let Some(text) = text_2 {
-        //        let tokens_2 = self.tokenize_with_offsets(text);
-        //        let token_ids_2: Vec<i64> = self.convert_tokens_to_ids(&tokens_2.tokens);
-        //        let len_2 = token_ids_2.len();
-        //        (
-        //            Some(TokenIdsWithOffsets {
-        //            ids: token_ids_2,
-        //            offsets: tokens_2.offsets,
-        //            reference_offsets: tokens_2.reference_offsets,
-        //            masks: tokens_2.masks,
-        //        }),
-        //        len_2,
-
-        //            )
-        //    } else {
-        //        (None, 0)
-        //    }
-        //};
-
-        //let additional_tokens = self.build_input_with_special_tokens(
-        //    TokenIdsWithOffsets {
-        //    ids: vec![],
-        //    offsets: vec![],
-        //    reference_offsets: vec![],
-        //    masks: vec![],
-        //},
-        //if token_ids_with_offsets_2.is_some() {
-        //    Some(TokenIdsWithOffsets {
-        //        ids: vec![],
-        //        offsets: vec![],
-        //        reference_offsets: vec![],
-        //        masks: vec![],
-        //    })
-        //} else {
-        //    None
-        //},
-        //);
 
         var total_len = len_1; // + len_2 + additional_tokens.token_ids.len();
         var num_truncated_tokens = total_len > maxLen ? total_len - maxLen : 0;
@@ -948,28 +911,25 @@ public class BaseTokenizer<T> where T : IVocab
 
         if (token.Mask == Mask.None)
         {
-            var utf8Bytes = TokenizationUtils.GetUtf8Bytes(token.Text);
-            var utf8Chars = TokenizationUtils.GetUtf8Chars(utf8Bytes);
-            var elementsLength = TokenizationUtils.GetLengthInTextElements(token.Text);
             // Iterate over characters with byte indices
             var itr = TokenizationUtils.Enumerate(TokenizationUtils.CharIndicesForRunes(token.Text));
             foreach (var (charIdx, (bytesIdx, _)) in itr)
             {
                 charCount++;
-                (int matchedBytes, int matchedChars, Mask setMask) = testSubstr(token.Text.Substring(Math.Min(bytesIdx, token.Text.Length)));
+                (int matchedBytes, int matchedChars, Mask setMask) = testSubstr(TokenizationUtils.SubstringRunes(token.Text, bytesIdx));
 
                 if (matchedChars > 0)
                 {
                     if (charBegin < charIdx)
                     {
                         // Add previous token
-                        string trimmedText = token.Text.Substring(bytesBegin, bytesIdx - bytesBegin).TrimEnd();
-                        if (trimmedText.Length > 0)
+                        string trimmedText = TokenizationUtils.SubstringRunes(token.Text, bytesBegin, bytesIdx - bytesBegin).TrimEnd();
+                        if (trimmedText.EnumerateRunes().Count() > 0)
                         {
                             tokens.Add(new Token(trimmedText)
                             {
                                 Offset = new Offset(token.Offset.Begin + charBegin, token.Offset.Begin + charBegin + (uint)trimmedText.Length),
-                                ReferenceOffsets = token.ReferenceOffsets.Skip((int)charBegin).Take(trimmedText.Length).ToArray(),
+                                ReferenceOffsets = token.ReferenceOffsets.Skip((int)charBegin).Take(trimmedText.EnumerateRunes().Count()).ToArray(),
                                 Mask = Mask.None
                             });
                         }
@@ -978,7 +938,7 @@ public class BaseTokenizer<T> where T : IVocab
                     if (addSeparators)
                     {
                         // Add separator token
-                        tokens.Add(new Token(token.Text.Substring(bytesIdx, matchedBytes))
+                        tokens.Add(new Token(TokenizationUtils.SubstringRunes(token.Text, bytesIdx, matchedBytes))
                         {
                             Offset = new Offset(token.Offset.Begin + (uint)charIdx, token.Offset.Begin + (uint)charIdx + (uint)matchedChars),
                             ReferenceOffsets = token.ReferenceOffsets.Skip(charIdx).Take(matchedChars).ToArray(),
@@ -997,10 +957,10 @@ public class BaseTokenizer<T> where T : IVocab
         {
             // Add last buffered token if there is anything left
             int bytesIdx = utf8BytesCount;
-            string text = token.Text.Substring(bytesBegin, Math.Min(bytesIdx - bytesBegin, token.Text.Length));
+            string text = TokenizationUtils.SubstringRunes(token.Text, bytesBegin, bytesBegin + (bytesIdx - bytesBegin));
             if (charCount == 0)
             {
-                charCount = TokenizationUtils.GetLengthInTextElements(token.Text);
+                charCount = token.Text.EnumerateRunes().Count();
             }
             tokens.Add(new Token(text)
             {

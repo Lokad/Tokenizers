@@ -11,10 +11,10 @@ namespace Lokad.Tokenizers.Tokenizer;
 public static class TokenizationUtils
 {
     // Substring Runes (characters)
-    public static string SubstringRunes(string text, int start, int end)
+    public static string SubstringRunes(string text, int start, int length)
     {
         var sb = new StringBuilder();
-        text.EnumerateRunes().Skip(start).Take(end - start).ToList().ForEach(r => sb.Append(r));
+        text.EnumerateRunes().Skip(start).Take(length).ToList().ForEach(r => sb.Append(r));
         return sb.ToString();
     }
 
@@ -419,10 +419,10 @@ public static class TokenizationUtils
         string normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
         //var normalizedBytes = Encoding.UTF8.GetBytes(normalizedString, 0, normalizedString.Length);
         //var normalizedChars = Encoding.UTF8.GetChars(normalizedBytes);
-
-        foreach (var (i, character) in TokenizationUtils.CharIndicesForRunes(normalizedString))
+        var itr = TokenizationUtils.CharIndicesForRunes(normalizedString);
+        foreach (var (i, character) in itr)
         {
-            var extraCharSize = -1 * (Encoding.UTF8.GetByteCount(new Char[] { (char)character.Value }) - 1);
+            var extraCharSize = Rune.IsLetterOrDigit(character) ? (-1 * (character.Utf8SequenceLength - 1)) : 0;
             decomposedString.Append(character);
             if (extraCharSize > 0)
             {
