@@ -422,7 +422,15 @@ public static class TokenizationUtils
         var itr = TokenizationUtils.CharIndicesForRunes(normalizedString);
         foreach (var (i, character) in itr)
         {
-            var extraCharSize = Rune.IsLetterOrDigit(character) ? (-1 * (character.Utf8SequenceLength - 1)) : 0;
+            var extraCharSize = 0;
+
+            //if (Rune.IsLetterOrDigit(character) && !character.IsAscii && character.IsBmp && i != 0)
+            //    extraCharSize = (character.Utf16SequenceLength - character.Utf8SequenceLength);
+
+            // check if character is removed from the original text after normalization
+            if (!token.Text.EnumerateRunes().Contains(character))
+                extraCharSize = -1;
+
             decomposedString.Append(character);
             if (extraCharSize > 0)
             {
