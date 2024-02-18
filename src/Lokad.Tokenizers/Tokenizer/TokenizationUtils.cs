@@ -89,14 +89,13 @@ public static class TokenizationUtils
 
     public static IEnumerable<(int Index, Rune Character)> CharIndicesForRunes(string str)
     {
-        int index = 0;
-        var runes = str.EnumerateRunes();
-        for (int i = 0; i < runes.Count(); i++)
+        var front_offset = 0;
+        var runes = str.EnumerateRunes().ToList();
+        for (int i = 0; i < runes.Count; i++)
         {
-            var c = runes.ElementAt(i);
-            yield return (index, c);
-            //index += GetUtf8BytesCount(strInfo.SubstringByTextElements(i, 1));
-            index++;
+            var index = front_offset;
+            yield return (index, runes[i]);
+            front_offset += runes[i].Utf8SequenceLength;
         }
     }
 
@@ -107,6 +106,26 @@ public static class TokenizationUtils
         {
             yield return (index++, element);
         }
+    }
+
+    public static string SubstringByByteOffset(string s, int start)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(s);
+        byte[] substringBytes = new byte[bytes.Length - start];
+        Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
+        return Encoding.UTF8.GetString(substringBytes);
+    }
+
+    public static string SubstringByByteOffset(string s, int start, int end)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(s);
+        if (end > bytes.Length || start > end)
+        {
+            throw new ArgumentOutOfRangeException("Invalid range");
+        }
+        byte[] substringBytes = new byte[end - start];
+        Array.Copy(bytes, start, substringBytes, 0, end - start);
+        return Encoding.UTF8.GetString(substringBytes);
     }
 
     /// <summary>

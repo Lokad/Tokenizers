@@ -29,7 +29,7 @@ public class TrieNode
     public TrieNode(string text)
     {
         Text = text;
-        Len = text.EnumerateRunes().ToList().Count;
+        Len = new StringInfo(text).LengthInTextElements;
         Children = new Dictionary<Rune, TrieNode>();
     }
 }
@@ -177,7 +177,8 @@ public class SentencePieceModel
     {
         List<int> charPositions = new List<int>();
 
-        TokenizationUtils.CharIndicesForRunes(token.Text).ToList().ForEach((i => charPositions.Add(i.Index)));
+        var runes = TokenizationUtils.CharIndicesForRunes(token.Text).ToList();
+        runes.ForEach((i => charPositions.Add(i.Index)));
         charPositions.Add(TokenizationUtils.GetUtf8BytesCount(token.Text));
 
         var results = new Node?[charPositions.Count];
@@ -186,8 +187,8 @@ public class SentencePieceModel
 
         for (var charStart = 0; charStart < charPositions.Count - 1; charStart++)
         {
-            var prefix = new StringBuilder();
-            token.Text.EnumerateRunes().Skip(charPositions[charStart]).ToList().ForEach(r => prefix.Append(r.ToString()));
+            var prefix = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart]);
+            //token.Text.EnumerateRunes().Skip(charPositions[charStart]).ToList().ForEach(r => prefix.Append(r.ToString()));
             var matches = CommonPrefixSearch(prefix.ToString());
 
             foreach (var node in matches)
@@ -197,11 +198,10 @@ public class SentencePieceModel
 
                 if (localScore > scores[charEnd])
                 {
-                    var sb = new StringBuilder();
-                    token.Text.EnumerateRunes().Skip(charPositions[charStart]).Take(charPositions[charEnd] - charPositions[charStart]).ToList().ForEach(r => sb.Append(r.ToString()));
+                    var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charEnd]);
                     results[charEnd] = new Node
                     {
-                        Text = sb.ToString(),
+                        Text = t,
                         Score = localScore,
                         Index = node.Index,
                         Start = charStart,
@@ -215,11 +215,10 @@ public class SentencePieceModel
 
             if (scores[charStart + 1] <= float.MinValue)
             {
-                var sb = new StringBuilder();
-                token.Text.EnumerateRunes().Skip(charPositions[charStart]).Take(charPositions[charStart + 1] - charPositions[charStart]).ToList().ForEach(r => sb.Append(r.ToString()));
+                var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charStart + 1]);
                 results[charStart + 1] = new Node
                 {
-                    Text = sb.ToString(),
+                    Text = t,
                     Score = float.MinValue,
                     Index = 0,
                     Start = charStart,
