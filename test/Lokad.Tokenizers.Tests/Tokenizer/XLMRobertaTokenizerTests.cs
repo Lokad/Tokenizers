@@ -271,7 +271,7 @@ public class XLMRobertaTokenizerTests
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
-        //Assert.Equal(expected_result.TokenIds, result.TokenIds);
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public class XLMRobertaTokenizerTests
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
-        //Assert.Equal(expected_result.TokenIds, result.TokenIds);
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
     }
 
     [Fact]
@@ -367,7 +367,7 @@ public class XLMRobertaTokenizerTests
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
-        //Assert.Equal(expected_result.TokenIds, result.TokenIds);
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
     }
 
     [Fact]
@@ -425,6 +425,6 @@ public class XLMRobertaTokenizerTests
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
-        //Assert.Equal(expected_result.TokenIds, result.TokenIds);
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
     }
 }

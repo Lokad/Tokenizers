@@ -1,4 +1,5 @@
 ﻿using Lokad.Tokenizers.Tokenizer;
+using Lokad.Tokenizers.Vocab;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -134,7 +135,7 @@ public class TokenizationUtilsTests
         string s = "▁tokénized";
 
 
-        var prefix = SubstringByByteOffset(s, 0);
+        var prefix = TokenizationUtils.SubstringByByteOffset(s, 0);
 
         // Expected positions
         var expected = "▁tokénized";
@@ -148,7 +149,7 @@ public class TokenizationUtilsTests
         string s = "▁tokénized";
 
 
-        var prefix = SubstringByByteOffset(s, 3);
+        var prefix = TokenizationUtils.SubstringByByteOffset(s, 3);
 
         // Expected positions
         var expected = "tokénized";
@@ -156,30 +157,49 @@ public class TokenizationUtilsTests
         Assert.Equal(expected, prefix);
     }
 
-    public string sub(string s, int start)
+    [Fact]
+    public void TestCharsCount_01()
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(s);
+        string s = "y̆";
 
-        int startIndex = start;  // Start index in bytes
-        int length = bytes.Length;  // Length in bytes
+        var count = new StringInfo(s).LengthInTextElements;
+        var expected = 1;
 
-        // Get the substring in bytes
-        byte[] subBytes = new byte[length];
-        Array.Copy(bytes, startIndex, subBytes, 0, length);
-
-        // Convert the bytes back to a string
-        string subString = Encoding.UTF8.GetString(subBytes);
-        return subString;
+        Assert.Equal(expected, count);
     }
 
-    public static string SubstringByByteOffset(string s, int start)
+    [Fact]
+    public void TestCharsCount_02()
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(s);
-        byte[] substringBytes = new byte[bytes.Length - start];
-        Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
-        return Encoding.UTF8.GetString(substringBytes);
+        string s = "İs th!s 𩸽 Ϻ Šœ Ugljšić dấu nặng";
+
+        var count = new StringInfo(s).LengthInTextElements;
+        var expected = 31;
+
+        Assert.Equal(expected, count);
     }
 
+    [Fact]
+    public void TestCharsCount_03()
+    {
+        string s = "Wondering how this will get tokenized 🤔 ?";
+
+        var count = new StringInfo(s).LengthInTextElements;
+        var expected = 41;
+
+        Assert.Equal(expected, count);
+    }
+
+    [Fact]
+    public void TestCharsCount_04()
+    {
+        string s = "🤔";
+
+        var count = new StringInfo(s).LengthInTextElements;
+        var expected = 1;
+
+        Assert.Equal(expected, count);
+    }
 
 
 }

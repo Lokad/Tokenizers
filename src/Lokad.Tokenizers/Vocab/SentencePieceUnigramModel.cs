@@ -60,9 +60,10 @@ public class SentencePieceModel
     {
         var node = Root;
 
-        var runes = word.EnumerateRunes().ToList();
-        foreach (var character in runes)
+        var runes = word.ToCharArray().Where(c => Rune.IsValid(c)).Select(c => new Rune(c)).ToList();
+        for (int i = 0; i < runes.Count(); i++)
         {
+            var character = runes[i];
             if (!node.Children.ContainsKey(character))
             {
                 var text = node.Text + character;
@@ -71,13 +72,14 @@ public class SentencePieceModel
 
             node = node.Children[character];
 
-            if (runes.Last() == character)
+            if (i == runes.Count - 1)
             {
                 node.End = true;
                 node.Score = score;
                 node.Index = index;
             }
         }
+
     }
 
     public List<TrieNode> CommonPrefixSearch(string text)
@@ -113,60 +115,6 @@ public class SentencePieceModel
             else
             {
                 break;
-            }
-        }
-
-        return results;
-    }
-
-    public List<Node?> DecodeForwardTokenRefV1(Token token)
-    {
-        List<int> charPositions = new List<int>();
-        int pos = 0;
-        foreach (Rune rune in token.Text.EnumerateRunes())
-        {
-            charPositions.Add(pos);
-            pos += rune.Utf8SequenceLength;
-        }
-        charPositions.Add(TokenizationUtils.GetUtf8BytesCount(token.Text));
-
-        List<Node?> results = new List<Node?>(new Node?[charPositions.Count]);
-        List<float> scores = new List<float>(Enumerable.Repeat(float.NegativeInfinity, charPositions.Count));
-        scores[0] = 0f;
-
-        for (int charStart = 0; charStart < charPositions.Count - 1; charStart++)
-        {
-            var matches = CommonPrefixSearch(TokenizationUtils.SubstringRunes(token.Text, charPositions[charStart]));
-            foreach (var node in matches)
-            {
-                float localScore = scores[charStart] + node.Score;
-                int charEnd = charStart + node.Len;
-                if (localScore > scores[charEnd])
-                {
-                    results[charEnd] = new Node
-                    {
-                        Text = TokenizationUtils.SubstringRunes(token.Text, charPositions[charStart], charPositions[charEnd] - charPositions[charStart]),
-                        Score = localScore,
-                        Index = node.Index,
-                        Start = charStart,
-                        End = charEnd,
-                        ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(charEnd - charStart).ToArray()
-                    };
-                    scores[charEnd] = localScore;
-                }
-            }
-            if (scores[charStart + 1] <= float.MinValue)
-            {
-                results[charStart + 1] = new Node
-                {
-                    Text = TokenizationUtils.SubstringRunes(token.Text, charPositions[charStart], charPositions[charStart + 1] - charPositions[charStart]),
-                    Score = float.MinValue,
-                    Index = 0,
-                    Start = charStart,
-                    End = charStart + 1,
-                    ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(1).ToArray()
-                };
-                scores[charStart + 1] = 0f;
             }
         }
 
@@ -223,7 +171,7 @@ public class SentencePieceModel
                     Index = 0,
                     Start = charStart,
                     End = charStart + 1,
-                    ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(charStart + 1 - charStart).ToArray()
+                    ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(1).ToArray()
                 };
 
                 scores[charStart + 1] = 0f;

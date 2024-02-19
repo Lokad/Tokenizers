@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
-using ProtoBuf; 
+using Google.Protobuf;
+using Sentencepiece;
 
 namespace Lokad.Tokenizers.Vocab;
 
@@ -37,7 +38,8 @@ public static class VocabHelper
             throw new FileNotFoundTokenizerException($"{path} vocabulary file not found");
 
         using var stream = File.OpenRead(path);
-        return Serializer.Deserialize<ModelProto>(stream);
+
+        return ModelProto.Parser.ParseFrom(stream);
     }
 
     public static Dictionary<string, long> ReadProtobufFile(string path)
