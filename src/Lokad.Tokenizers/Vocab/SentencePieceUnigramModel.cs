@@ -196,32 +196,6 @@ public class SentencePieceModel
         return bestSequence;
     }
 
-    public List<Token> ParseNodesToTokensV0(List<Node> nodes)
-    {
-        var output = new List<Token>();
-        var isPrevUnknown = false;
-
-        foreach (var node in nodes)
-        {
-            if (isPrevUnknown && node.Index == 0)
-            {
-                var prevToken = output.Last();
-                prevToken.Text += node.Text;
-                prevToken.ReferenceOffsets = prevToken.ReferenceOffsets.Concat(node.ReferenceOffsets).ToArray();
-            }
-            else
-            {
-                output.Add(new Token(node.Text, node.ReferenceOffsets));
-            }
-
-            isPrevUnknown = node.Index == 0;
-        }
-
-        PopulateMasks(output, '\u2581');
-
-        return output;
-    }
-
     public List<Token> ParseNodesToTokens(List<Node> nodes)
     {
         List<Token> output = new List<Token>(nodes.Count + 1);

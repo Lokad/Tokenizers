@@ -621,7 +621,6 @@ public class BaseTokenizer<T> where T : IVocab
     /// <returns>`List<Token>` tokenization of the original `Token`</returns>
     public virtual List<Token> TokenizeToTokens(Token initialToken)
     {
-        throw new NotImplementedException();
         //split on whitespace
         var tokens = WhitespaceTokenize(initialToken)
             .SelectMany(token =>
@@ -671,41 +670,6 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-    //public virtual List<Token> TokenizeToTokens(Token initialToken)
-    //{
-    //    List<Token> tokens = SplitOnSpecialTokens(initialToken, this.Vocab)
-    //                         .ToList();
-
-    //    List<Token> subTokens = new List<Token>();
-    //    foreach (var token in tokens)
-    //    {
-    //        if (token.Mask != Mask.Special && token.Mask != Mask.Unknown)
-    //        {
-    //            CleanText(token, true);
-    //            DecomposeNfkc(token);
-    //            if (this._lowerCase)
-    //            {
-    //                Lowercase(token);
-    //            }
-    //            token.Text = new string(token.Text.Select(c => char.IsWhiteSpace(c) ? '\u2581' : c).ToArray());
-    //            if (!token.Text.StartsWith("\u2581"))
-    //            {
-    //                token.Text = "\u2581" + token.Text;
-    //                //token.ReferenceOffsets.Insert(0, 0);
-    //            }
-    //            var output = model.DecodeForwardTokenRef(token);
-    //            var decoded = model.DecodeBackward(output);
-
-    //            var outputTokens = model.ParseNodesToTokens(decoded);
-    //            subTokens.AddRange(outputTokens);
-    //        }
-    //        else
-    //        {
-    //            subTokens.Add(new Token(token.Text) { Mask = token.Mask, ReferenceOffsets = token.ReferenceOffsets.ToList() });
-    //        }
-    //    }
-    //    return subTokens;
-    //}
 
     public void DecomposeNfkc(Token token)
     {
@@ -842,41 +806,6 @@ public class BaseTokenizer<T> where T : IVocab
         {
             var offsets = initialToken.ReferenceOffsets.SkipWhile((offset, index) => char.IsWhiteSpace(initialToken.Text[index])).Take(part.Length).ToArray();
             tokens.Add(new Token(part, offsets));
-        }
-        return tokens;
-    }
-
-    protected static List<Token> SplitOnSpecialTokensV0(Token token, IVocab vocab)
-    {
-        var tokens = new List<Token>();
-        var text = token.Text;
-        var start = 0;
-        var end = 0;
-        while (start < text.Length)
-        {
-            var subText = text.Substring(start);
-            var match = vocab.SpecialTokens().FirstOrDefault(t => subText.StartsWith(t));
-            if (match != null)
-            {
-                end = start + match.Length;
-                var offsets = token.ReferenceOffsets.Skip(start).Take(match.Length).ToArray();
-                tokens.Add(new Token(match, offsets) { Mask = Mask.Special });
-                start = end;
-            }
-            else
-            {
-                end = start + 1;
-                while (end < text.Length && vocab.SpecialTokens().All(t => !text.Substring(start, end - start + 1).EndsWith(t)))
-                {
-                    end++;
-                }
-
-                // CONTINUED
-
-                var offsets = token.ReferenceOffsets.Skip(start).Take(end - start).ToArray();
-                tokens.Add(new Token(text.Substring(start, end - start), offsets));
-                start = end;
-            }
         }
         return tokens;
     }

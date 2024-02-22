@@ -25,9 +25,6 @@ public static class TokenizationUtils
         return sb.ToString();
     }
 
-
-
-
     // Get string Runes (characters)
     public static StringRuneEnumerator GetStringRuneEnumerator(string text)
     {
@@ -399,36 +396,6 @@ public static class TokenizationUtils
     /// <summary>
     /// NFKC decomposition
     /// </summary>
-    public static void DecomposeNfkcV0(Token token)
-    {
-        var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
-        var decomposedString = new StringBuilder(normalizedString.Length);
-        var characterMapping = new List<uint>();
-
-        int originalIndex = 0;
-        foreach (var character in normalizedString)
-        {
-            decomposedString.Append(character);
-
-            // Assuming each character in the normalized string maps to one character in the original string
-            if (originalIndex < token.ReferenceOffsets.Count)
-            {
-                characterMapping.Add(token.ReferenceOffsets[originalIndex]);
-            }
-            else
-            {
-                // Handle cases where normalization adds characters
-                characterMapping.Add(token.ReferenceOffsets.LastOrDefault());
-            }
-
-            originalIndex++;
-        }
-
-        token.Text = decomposedString.ToString();
-        token.ReferenceOffsets = characterMapping;
-        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
-    }
-
     public static void DecomposeNfkc(Token token)
     {
         int capacity = Encoding.UTF8.GetByteCount(token.Text);
@@ -436,8 +403,6 @@ public static class TokenizationUtils
         List<uint> characterMapping = new List<uint>(capacity);
         int curPosition = 0;
         string normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
-        //var normalizedBytes = Encoding.UTF8.GetBytes(normalizedString, 0, normalizedString.Length);
-        //var normalizedChars = Encoding.UTF8.GetChars(normalizedBytes);
         var itr = TokenizationUtils.CharIndicesForRunes(normalizedString);
         foreach (var (i, character) in itr)
         {
@@ -446,7 +411,7 @@ public static class TokenizationUtils
             //if (Rune.IsLetterOrDigit(character) && !character.IsAscii && character.IsBmp && i != 0)
             //    extraCharSize = (character.Utf16SequenceLength - character.Utf8SequenceLength);
 
-            // check if character is removed from the original text after normalization
+            //HINT: [@eslam] check if character is removed from the original text after normalization
             if (!token.Text.EnumerateRunes().Contains(character))
                 extraCharSize = -1;
 
@@ -473,26 +438,6 @@ public static class TokenizationUtils
         }
 
         token.Text = decomposedString.ToString();//.Normalize(NormalizationForm.FormKC);
-        token.ReferenceOffsets = characterMapping;
-        token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
-        token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
-    }
-
-    public static void DecomposeNfkcV1(Token token)
-    {
-        int capacity = token.Text.Length;
-        StringBuilder decomposedString = new StringBuilder(capacity);
-        List<uint> characterMapping = new List<uint>(capacity);
-        int curPosition = 0;
-
-        foreach (char character in token.Text/*.Normalize(NormalizationForm.FormC)*/)
-        {
-            decomposedString.Append(character);
-            characterMapping.Add(token.ReferenceOffsets[curPosition]);
-            curPosition += 1; // Adjust based on Unicode character width if needed
-        }
-
-        token.Text = decomposedString.ToString().Normalize(NormalizationForm.FormKC);
         token.ReferenceOffsets = characterMapping;
         token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
         token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
