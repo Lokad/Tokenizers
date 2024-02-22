@@ -1,6 +1,5 @@
 ﻿using System.Text.Json;
 using Google.Protobuf;
-using Sentencepiece;
 
 namespace Lokad.Tokenizers.Vocab;
 

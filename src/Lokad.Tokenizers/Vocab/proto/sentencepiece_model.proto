@@ -16,6 +16,8 @@ syntax = "proto2";
 
 // TODO(taku): Needs to use LITE RUNTIME in OSS release.
 option optimize_for = LITE_RUNTIME;
+// HINT: This is the only way to change the generated namespace.
+option csharp_namespace = "Lokad.Tokenizers.Vocab";
 
 package sentencepiece;
 

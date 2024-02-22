@@ -9,7 +9,7 @@ using pb = global::Google.Protobuf;
 using pbc = global::Google.Protobuf.Collections;
 using pbr = global::Google.Protobuf.Reflection;
 using scg = global::System.Collections.Generic;
-namespace Sentencepiece {
+namespace Lokad.Tokenizers.Vocab {
 
   /// <summary>Holder for reflection information generated from sentencepiece_model.proto</summary>
   public static partial class SentencepieceModelReflection {
@@ -73,14 +73,14 @@ namespace Sentencepiece {
             "by5TZW50ZW5jZVBpZWNlLlR5cGU6Bk5PUk1BTCJUCgRUeXBlEgoKBk5PUk1B",
             "TBABEgsKB1VOS05PV04QAhILCgdDT05UUk9MEAMSEAoMVVNFUl9ERUZJTkVE",
             "EAQSCAoEQllURRAGEgoKBlVOVVNFRBAFKgkIyAEQgICAgAIqCQjIARCAgICA",
-            "AkICSAM="));
+            "AkIbSAOqAhZMb2thZC5Ub2tlbml6ZXJzLlZvY2Fi"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Sentencepiece.TrainerSpec), global::Sentencepiece.TrainerSpec.Parser, new[]{ "Input", "InputFormat", "ModelPrefix", "ModelType", "VocabSize", "AcceptLanguage", "SelfTestSampleSize", "CharacterCoverage", "InputSentenceSize", "ShuffleInputSentence", "MiningSentenceSize", "TrainingSentenceSize", "SeedSentencepieceSize", "ShrinkingFactor", "MaxSentenceLength", "NumThreads", "NumSubIterations", "MaxSentencepieceLength", "SplitByUnicodeScript", "SplitByNumber", "SplitByWhitespace", "TreatWhitespaceAsSuffix", "SplitDigits", "ControlSymbols", "UserDefinedSymbols", "RequiredChars", "ByteFallback", "VocabularyOutputPieceScore", "HardVocabLimit", "UseAllVocab", "UnkId", "BosId", "EosId", "PadId", "UnkPiece", "BosPiece", "EosPiece", "PadPiece", "UnkSurface", "TrainExtremelyLargeCorpus" }, null, new[]{ typeof(global::Sentencepiece.TrainerSpec.Types.ModelType) }, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Sentencepiece.NormalizerSpec), global::Sentencepiece.NormalizerSpec.Parser, new[]{ "Name", "PrecompiledCharsmap", "AddDummyPrefix", "RemoveExtraWhitespaces", "EscapeWhitespaces", "NormalizationRuleTsv" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Sentencepiece.SelfTestData), global::Sentencepiece.SelfTestData.Parser, new[]{ "Samples" }, null, null, null, new pbr::GeneratedClrTypeInfo[] { new pbr::GeneratedClrTypeInfo(typeof(global::Sentencepiece.SelfTestData.Types.Sample), global::Sentencepiece.SelfTestData.Types.Sample.Parser, new[]{ "Input", "Expected" }, null, null, null, null)}),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Sentencepiece.ModelProto), global::Sentencepiece.ModelProto.Parser, new[]{ "Pieces", "TrainerSpec", "NormalizerSpec", "SelfTestData", "DenormalizerSpec" }, null, null, null, new pbr::GeneratedClrTypeInfo[] { new pbr::GeneratedClrTypeInfo(typeof(global::Sentencepiece.ModelProto.Types.SentencePiece), global::Sentencepiece.ModelProto.Types.SentencePiece.Parser, new[]{ "Piece", "Score", "Type" }, null, new[]{ typeof(global::Sentencepiece.ModelProto.Types.SentencePiece.Types.Type) }, null, null)})
+            new pbr::GeneratedClrTypeInfo(typeof(global::Lokad.Tokenizers.Vocab.TrainerSpec), global::Lokad.Tokenizers.Vocab.TrainerSpec.Parser, new[]{ "Input", "InputFormat", "ModelPrefix", "ModelType", "VocabSize", "AcceptLanguage", "SelfTestSampleSize", "CharacterCoverage", "InputSentenceSize", "ShuffleInputSentence", "MiningSentenceSize", "TrainingSentenceSize", "SeedSentencepieceSize", "ShrinkingFactor", "MaxSentenceLength", "NumThreads", "NumSubIterations", "MaxSentencepieceLength", "SplitByUnicodeScript", "SplitByNumber", "SplitByWhitespace", "TreatWhitespaceAsSuffix", "SplitDigits", "ControlSymbols", "UserDefinedSymbols", "RequiredChars", "ByteFallback", "VocabularyOutputPieceScore", "HardVocabLimit", "UseAllVocab", "UnkId", "BosId", "EosId", "PadId", "UnkPiece", "BosPiece", "EosPiece", "PadPiece", "UnkSurface", "TrainExtremelyLargeCorpus" }, null, new[]{ typeof(global::Lokad.Tokenizers.Vocab.TrainerSpec.Types.ModelType) }, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Lokad.Tokenizers.Vocab.NormalizerSpec), global::Lokad.Tokenizers.Vocab.NormalizerSpec.Parser, new[]{ "Name", "PrecompiledCharsmap", "AddDummyPrefix", "RemoveExtraWhitespaces", "EscapeWhitespaces", "NormalizationRuleTsv" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Lokad.Tokenizers.Vocab.SelfTestData), global::Lokad.Tokenizers.Vocab.SelfTestData.Parser, new[]{ "Samples" }, null, null, null, new pbr::GeneratedClrTypeInfo[] { new pbr::GeneratedClrTypeInfo(typeof(global::Lokad.Tokenizers.Vocab.SelfTestData.Types.Sample), global::Lokad.Tokenizers.Vocab.SelfTestData.Types.Sample.Parser, new[]{ "Input", "Expected" }, null, null, null, null)}),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Lokad.Tokenizers.Vocab.ModelProto), global::Lokad.Tokenizers.Vocab.ModelProto.Parser, new[]{ "Pieces", "TrainerSpec", "NormalizerSpec", "SelfTestData", "DenormalizerSpec" }, null, null, null, new pbr::GeneratedClrTypeInfo[] { new pbr::GeneratedClrTypeInfo(typeof(global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece), global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Parser, new[]{ "Piece", "Score", "Type" }, null, new[]{ typeof(global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Types.Type) }, null, null)})
           }));
     }
     #endregion
@@ -108,7 +108,7 @@ namespace Sentencepiece {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Sentencepiece.SentencepieceModelReflection.Descriptor.MessageTypes[0]; }
+      get { return global::Lokad.Tokenizers.Vocab.SentencepieceModelReflection.Descriptor.MessageTypes[0]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -266,12 +266,12 @@ namespace Sentencepiece {
 
     /// <summary>Field number for the "model_type" field.</summary>
     public const int ModelTypeFieldNumber = 3;
-    private readonly static global::Sentencepiece.TrainerSpec.Types.ModelType ModelTypeDefaultValue = global::Sentencepiece.TrainerSpec.Types.ModelType.Unigram;
+    private readonly static global::Lokad.Tokenizers.Vocab.TrainerSpec.Types.ModelType ModelTypeDefaultValue = global::Lokad.Tokenizers.Vocab.TrainerSpec.Types.ModelType.Unigram;
 
-    private global::Sentencepiece.TrainerSpec.Types.ModelType modelType_;
+    private global::Lokad.Tokenizers.Vocab.TrainerSpec.Types.ModelType modelType_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Sentencepiece.TrainerSpec.Types.ModelType ModelType {
+    public global::Lokad.Tokenizers.Vocab.TrainerSpec.Types.ModelType ModelType {
       get { if ((_hasBits0 & 1) != 0) { return modelType_; } else { return ModelTypeDefaultValue; } }
       set {
         _hasBits0 |= 1;
@@ -2088,7 +2088,7 @@ namespace Sentencepiece {
             break;
           }
           case 24: {
-            ModelType = (global::Sentencepiece.TrainerSpec.Types.ModelType) input.ReadEnum();
+            ModelType = (global::Lokad.Tokenizers.Vocab.TrainerSpec.Types.ModelType) input.ReadEnum();
             break;
           }
           case 32: {
@@ -2265,7 +2265,7 @@ namespace Sentencepiece {
             break;
           }
           case 24: {
-            ModelType = (global::Sentencepiece.TrainerSpec.Types.ModelType) input.ReadEnum();
+            ModelType = (global::Lokad.Tokenizers.Vocab.TrainerSpec.Types.ModelType) input.ReadEnum();
             break;
           }
           case 32: {
@@ -2496,7 +2496,7 @@ namespace Sentencepiece {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Sentencepiece.SentencepieceModelReflection.Descriptor.MessageTypes[1]; }
+      get { return global::Lokad.Tokenizers.Vocab.SentencepieceModelReflection.Descriptor.MessageTypes[1]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -3032,7 +3032,7 @@ namespace Sentencepiece {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Sentencepiece.SentencepieceModelReflection.Descriptor.MessageTypes[2]; }
+      get { return global::Lokad.Tokenizers.Vocab.SentencepieceModelReflection.Descriptor.MessageTypes[2]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -3065,12 +3065,12 @@ namespace Sentencepiece {
 
     /// <summary>Field number for the "samples" field.</summary>
     public const int SamplesFieldNumber = 1;
-    private static readonly pb::FieldCodec<global::Sentencepiece.SelfTestData.Types.Sample> _repeated_samples_codec
-        = pb::FieldCodec.ForMessage(10, global::Sentencepiece.SelfTestData.Types.Sample.Parser);
-    private readonly pbc::RepeatedField<global::Sentencepiece.SelfTestData.Types.Sample> samples_ = new pbc::RepeatedField<global::Sentencepiece.SelfTestData.Types.Sample>();
+    private static readonly pb::FieldCodec<global::Lokad.Tokenizers.Vocab.SelfTestData.Types.Sample> _repeated_samples_codec
+        = pb::FieldCodec.ForMessage(10, global::Lokad.Tokenizers.Vocab.SelfTestData.Types.Sample.Parser);
+    private readonly pbc::RepeatedField<global::Lokad.Tokenizers.Vocab.SelfTestData.Types.Sample> samples_ = new pbc::RepeatedField<global::Lokad.Tokenizers.Vocab.SelfTestData.Types.Sample>();
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Sentencepiece.SelfTestData.Types.Sample> Samples {
+    public pbc::RepeatedField<global::Lokad.Tokenizers.Vocab.SelfTestData.Types.Sample> Samples {
       get { return samples_; }
     }
 
@@ -3257,7 +3257,7 @@ namespace Sentencepiece {
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
         [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
         public static pbr::MessageDescriptor Descriptor {
-          get { return global::Sentencepiece.SelfTestData.Descriptor.NestedTypes[0]; }
+          get { return global::Lokad.Tokenizers.Vocab.SelfTestData.Descriptor.NestedTypes[0]; }
         }
 
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -3525,7 +3525,7 @@ namespace Sentencepiece {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Sentencepiece.SentencepieceModelReflection.Descriptor.MessageTypes[3]; }
+      get { return global::Lokad.Tokenizers.Vocab.SentencepieceModelReflection.Descriptor.MessageTypes[3]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -3562,27 +3562,27 @@ namespace Sentencepiece {
 
     /// <summary>Field number for the "pieces" field.</summary>
     public const int PiecesFieldNumber = 1;
-    private static readonly pb::FieldCodec<global::Sentencepiece.ModelProto.Types.SentencePiece> _repeated_pieces_codec
-        = pb::FieldCodec.ForMessage(10, global::Sentencepiece.ModelProto.Types.SentencePiece.Parser);
-    private readonly pbc::RepeatedField<global::Sentencepiece.ModelProto.Types.SentencePiece> pieces_ = new pbc::RepeatedField<global::Sentencepiece.ModelProto.Types.SentencePiece>();
+    private static readonly pb::FieldCodec<global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece> _repeated_pieces_codec
+        = pb::FieldCodec.ForMessage(10, global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Parser);
+    private readonly pbc::RepeatedField<global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece> pieces_ = new pbc::RepeatedField<global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece>();
     /// <summary>
     /// Sentence pieces with scores.
     /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Sentencepiece.ModelProto.Types.SentencePiece> Pieces {
+    public pbc::RepeatedField<global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece> Pieces {
       get { return pieces_; }
     }
 
     /// <summary>Field number for the "trainer_spec" field.</summary>
     public const int TrainerSpecFieldNumber = 2;
-    private global::Sentencepiece.TrainerSpec trainerSpec_;
+    private global::Lokad.Tokenizers.Vocab.TrainerSpec trainerSpec_;
     /// <summary>
     /// Spec used to generate this model file.
     /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Sentencepiece.TrainerSpec TrainerSpec {
+    public global::Lokad.Tokenizers.Vocab.TrainerSpec TrainerSpec {
       get { return trainerSpec_; }
       set {
         trainerSpec_ = value;
@@ -3591,13 +3591,13 @@ namespace Sentencepiece {
 
     /// <summary>Field number for the "normalizer_spec" field.</summary>
     public const int NormalizerSpecFieldNumber = 3;
-    private global::Sentencepiece.NormalizerSpec normalizerSpec_;
+    private global::Lokad.Tokenizers.Vocab.NormalizerSpec normalizerSpec_;
     /// <summary>
     /// Spec for text normalization.
     /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Sentencepiece.NormalizerSpec NormalizerSpec {
+    public global::Lokad.Tokenizers.Vocab.NormalizerSpec NormalizerSpec {
       get { return normalizerSpec_; }
       set {
         normalizerSpec_ = value;
@@ -3606,13 +3606,13 @@ namespace Sentencepiece {
 
     /// <summary>Field number for the "self_test_data" field.</summary>
     public const int SelfTestDataFieldNumber = 4;
-    private global::Sentencepiece.SelfTestData selfTestData_;
+    private global::Lokad.Tokenizers.Vocab.SelfTestData selfTestData_;
     /// <summary>
     /// Stores sample input and its expected segmentation to verify the model.
     /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Sentencepiece.SelfTestData SelfTestData {
+    public global::Lokad.Tokenizers.Vocab.SelfTestData SelfTestData {
       get { return selfTestData_; }
       set {
         selfTestData_ = value;
@@ -3621,13 +3621,13 @@ namespace Sentencepiece {
 
     /// <summary>Field number for the "denormalizer_spec" field.</summary>
     public const int DenormalizerSpecFieldNumber = 5;
-    private global::Sentencepiece.NormalizerSpec denormalizerSpec_;
+    private global::Lokad.Tokenizers.Vocab.NormalizerSpec denormalizerSpec_;
     /// <summary>
     /// Spec for text de-normalization.
     /// </summary>
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Sentencepiece.NormalizerSpec DenormalizerSpec {
+    public global::Lokad.Tokenizers.Vocab.NormalizerSpec DenormalizerSpec {
       get { return denormalizerSpec_; }
       set {
         denormalizerSpec_ = value;
@@ -3781,25 +3781,25 @@ namespace Sentencepiece {
       pieces_.Add(other.pieces_);
       if (other.trainerSpec_ != null) {
         if (trainerSpec_ == null) {
-          TrainerSpec = new global::Sentencepiece.TrainerSpec();
+          TrainerSpec = new global::Lokad.Tokenizers.Vocab.TrainerSpec();
         }
         TrainerSpec.MergeFrom(other.TrainerSpec);
       }
       if (other.normalizerSpec_ != null) {
         if (normalizerSpec_ == null) {
-          NormalizerSpec = new global::Sentencepiece.NormalizerSpec();
+          NormalizerSpec = new global::Lokad.Tokenizers.Vocab.NormalizerSpec();
         }
         NormalizerSpec.MergeFrom(other.NormalizerSpec);
       }
       if (other.selfTestData_ != null) {
         if (selfTestData_ == null) {
-          SelfTestData = new global::Sentencepiece.SelfTestData();
+          SelfTestData = new global::Lokad.Tokenizers.Vocab.SelfTestData();
         }
         SelfTestData.MergeFrom(other.SelfTestData);
       }
       if (other.denormalizerSpec_ != null) {
         if (denormalizerSpec_ == null) {
-          DenormalizerSpec = new global::Sentencepiece.NormalizerSpec();
+          DenormalizerSpec = new global::Lokad.Tokenizers.Vocab.NormalizerSpec();
         }
         DenormalizerSpec.MergeFrom(other.DenormalizerSpec);
       }
@@ -3827,28 +3827,28 @@ namespace Sentencepiece {
           }
           case 18: {
             if (trainerSpec_ == null) {
-              TrainerSpec = new global::Sentencepiece.TrainerSpec();
+              TrainerSpec = new global::Lokad.Tokenizers.Vocab.TrainerSpec();
             }
             input.ReadMessage(TrainerSpec);
             break;
           }
           case 26: {
             if (normalizerSpec_ == null) {
-              NormalizerSpec = new global::Sentencepiece.NormalizerSpec();
+              NormalizerSpec = new global::Lokad.Tokenizers.Vocab.NormalizerSpec();
             }
             input.ReadMessage(NormalizerSpec);
             break;
           }
           case 34: {
             if (selfTestData_ == null) {
-              SelfTestData = new global::Sentencepiece.SelfTestData();
+              SelfTestData = new global::Lokad.Tokenizers.Vocab.SelfTestData();
             }
             input.ReadMessage(SelfTestData);
             break;
           }
           case 42: {
             if (denormalizerSpec_ == null) {
-              DenormalizerSpec = new global::Sentencepiece.NormalizerSpec();
+              DenormalizerSpec = new global::Lokad.Tokenizers.Vocab.NormalizerSpec();
             }
             input.ReadMessage(DenormalizerSpec);
             break;
@@ -3876,28 +3876,28 @@ namespace Sentencepiece {
           }
           case 18: {
             if (trainerSpec_ == null) {
-              TrainerSpec = new global::Sentencepiece.TrainerSpec();
+              TrainerSpec = new global::Lokad.Tokenizers.Vocab.TrainerSpec();
             }
             input.ReadMessage(TrainerSpec);
             break;
           }
           case 26: {
             if (normalizerSpec_ == null) {
-              NormalizerSpec = new global::Sentencepiece.NormalizerSpec();
+              NormalizerSpec = new global::Lokad.Tokenizers.Vocab.NormalizerSpec();
             }
             input.ReadMessage(NormalizerSpec);
             break;
           }
           case 34: {
             if (selfTestData_ == null) {
-              SelfTestData = new global::Sentencepiece.SelfTestData();
+              SelfTestData = new global::Lokad.Tokenizers.Vocab.SelfTestData();
             }
             input.ReadMessage(SelfTestData);
             break;
           }
           case 42: {
             if (denormalizerSpec_ == null) {
-              DenormalizerSpec = new global::Sentencepiece.NormalizerSpec();
+              DenormalizerSpec = new global::Lokad.Tokenizers.Vocab.NormalizerSpec();
             }
             input.ReadMessage(DenormalizerSpec);
             break;
@@ -3952,7 +3952,7 @@ namespace Sentencepiece {
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
         [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
         public static pbr::MessageDescriptor Descriptor {
-          get { return global::Sentencepiece.ModelProto.Descriptor.NestedTypes[0]; }
+          get { return global::Lokad.Tokenizers.Vocab.ModelProto.Descriptor.NestedTypes[0]; }
         }
 
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -4044,12 +4044,12 @@ namespace Sentencepiece {
 
         /// <summary>Field number for the "type" field.</summary>
         public const int TypeFieldNumber = 3;
-        private readonly static global::Sentencepiece.ModelProto.Types.SentencePiece.Types.Type TypeDefaultValue = global::Sentencepiece.ModelProto.Types.SentencePiece.Types.Type.Normal;
+        private readonly static global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Types.Type TypeDefaultValue = global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Types.Type.Normal;
 
-        private global::Sentencepiece.ModelProto.Types.SentencePiece.Types.Type type_;
+        private global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Types.Type type_;
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
         [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-        public global::Sentencepiece.ModelProto.Types.SentencePiece.Types.Type Type {
+        public global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Types.Type Type {
           get { if ((_hasBits0 & 2) != 0) { return type_; } else { return TypeDefaultValue; } }
           set {
             _hasBits0 |= 2;
@@ -4231,7 +4231,7 @@ namespace Sentencepiece {
                 break;
               }
               case 24: {
-                Type = (global::Sentencepiece.ModelProto.Types.SentencePiece.Types.Type) input.ReadEnum();
+                Type = (global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Types.Type) input.ReadEnum();
                 break;
               }
             }
@@ -4260,7 +4260,7 @@ namespace Sentencepiece {
                 break;
               }
               case 24: {
-                Type = (global::Sentencepiece.ModelProto.Types.SentencePiece.Types.Type) input.ReadEnum();
+                Type = (global::Lokad.Tokenizers.Vocab.ModelProto.Types.SentencePiece.Types.Type) input.ReadEnum();
                 break;
               }
             }
