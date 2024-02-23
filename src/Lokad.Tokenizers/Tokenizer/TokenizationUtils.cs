@@ -5,9 +5,6 @@ using System.Globalization;
 
 namespace Lokad.Tokenizers.Tokenizer;
 
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
-// TODO: unit tests not ported
-
 public static class TokenizationUtils
 {
     // Substring Runes (characters)

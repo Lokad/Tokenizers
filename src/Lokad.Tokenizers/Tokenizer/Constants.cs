@@ -2,8 +2,6 @@
 
 using System.Collections.Generic;
 
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/constants.rs
-
 public static class Constants
 {
     public static readonly HashSet<uint> WhitespaceChars = new HashSet<uint>(new uint[]

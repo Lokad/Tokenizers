@@ -2,7 +2,6 @@
 
 namespace Lokad.Tokenizers.Vocab.Tests;
 
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/base_vocab.rs
 public class BaseVocabTests
 {
     [Fact(Skip = "DIsable temporary - object initialization logic is wrong")]

@@ -7,9 +7,6 @@ using System.Reflection;
 using static System.Net.Mime.MediaTypeNames;
 using System.Threading.Tasks;
 
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
-// TODO: unit tests not ported
-
 // Port notes:
 // - OffsetSize is ported as 'uint'
 // - Token and TokenRef have been merged as 'Token'.
@@ -1019,33 +1016,4 @@ public class BaseTokenizer<T> where T : IVocab
         }
         return tokens;
     }
-}
-
-public interface IMultiThreadedTokenizer<T> where T : IVocab
-{
-    T Vocab();
-
-    List<TokensWithOffsets> TokenizeListWithOffsets(string[] textList);
-
-    List<List<string>> TokenizeList(string[] textList);
-
-    List<TokenizedInput> EncodeList(
-        string[] textList,
-        int maxLen,
-        TruncationStrategy truncationStrategy,
-        int stride
-    );
-
-    List<TokenizedInput> EncodePairList(
-        Tuple<string, string>[] textList,
-        int maxLen,
-        TruncationStrategy truncationStrategy,
-        int stride
-    );
-
-    List<string> DecodeList(
-        List<List<long>> tokenIdsList,
-        bool skipSpecialTokens,
-        bool cleanUpTokenizationSpaces
-    );
 }

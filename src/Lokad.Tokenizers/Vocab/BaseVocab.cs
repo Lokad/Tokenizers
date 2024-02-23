@@ -3,8 +3,6 @@ using Google.Protobuf;
 
 namespace Lokad.Tokenizers.Vocab;
 
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/base_vocab.rs
-
 public static class VocabHelper
 {
     public static Dictionary<TValue, TKey> SwapKeyValue<TKey, TValue>(Dictionary<TKey, TValue> dictionary)

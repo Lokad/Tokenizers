@@ -1,7 +1,5 @@
 ﻿namespace Lokad.Tokenizers.Vocab;
 
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/xlm_roberta_vocab.rs
-
 public class XlmRobertaVocab : BaseVocab
 {
     private const string DefaultUnkToken = "<unk>";
