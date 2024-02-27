@@ -1,14 +1,127 @@
 ﻿using System.Text.RegularExpressions;
 using System.Text;
 using Lokad.Tokenizers.Vocab;
+using System.Globalization;
 
 namespace Lokad.Tokenizers.Tokenizer;
 
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/tokenization_utils.rs
-// TODO: unit tests not ported
-
 public static class TokenizationUtils
 {
+    // Substring Runes (characters)
+    public static string SubstringRunes(string text, int start, int length)
+    {
+        var sb = new StringBuilder();
+        text.EnumerateRunes().Skip(start).Take(length).ToList().ForEach(r => sb.Append(r));
+        return sb.ToString();
+    }
+
+    public static string SubstringRunes(string text, int start)
+    {
+        var sb = new StringBuilder();
+        text.EnumerateRunes().Skip(start).ToList().ForEach(r => sb.Append(r));
+        return sb.ToString();
+    }
+
+    // Get string Runes (characters)
+    public static StringRuneEnumerator GetStringRuneEnumerator(string text)
+    {
+        return text.EnumerateRunes();
+    }
+
+    // Get LengthInTextElements
+    public static StringInfo GetStringInfo(string text)
+    {
+        return new System.Globalization.StringInfo(text);
+    }
+
+    // Get LengthInTextElements
+    public static int GetLengthInTextElements(string text)
+    {
+        return GetStringInfo(text).LengthInTextElements;
+    }
+
+    // Get UTF 8 Bytes
+    public static byte[] GetUtf8Bytes(string text)
+    {
+        return Encoding.UTF8.GetBytes(text);
+    }
+
+    // Get UTF 8 Chars
+    public static char[] GetUtf8Chars(byte[] bytes)
+    {
+        return Encoding.UTF8.GetChars(bytes);
+    }
+
+    // Get UTF 8 Bytes Count
+    public static int GetUtf8BytesCount(string text)
+    {
+        return Encoding.UTF8.GetByteCount(text);
+    }
+
+    public static IEnumerable<(int Index, char Character)> CharIndices(string str)
+    {
+        int index = 0;
+        foreach (char character in str)
+        {
+            yield return (index, character);
+            index += GetUtf8BytesCount(character.ToString());
+        }
+    }
+
+    public static IEnumerable<(int Index, string Character)> CharIndicesForTextElements(string str)
+    {
+        int index = 0;
+        var strInfo = GetStringInfo(str);
+        for (int i = 0; i < strInfo.LengthInTextElements; i++)
+        {
+            var c = strInfo.SubstringByTextElements(i, 1);
+            yield return (index, c);
+            //index += GetUtf8BytesCount(strInfo.SubstringByTextElements(i, 1));
+            index++;
+        }
+    }
+
+    public static IEnumerable<(int Index, Rune Character)> CharIndicesForRunes(string str)
+    {
+        var front_offset = 0;
+        var runes = str.EnumerateRunes().ToList();
+        for (int i = 0; i < runes.Count; i++)
+        {
+            var index = front_offset;
+            yield return (index, runes[i]);
+            front_offset += runes[i].Utf8SequenceLength;
+        }
+    }
+
+    public static IEnumerable<(int Index, T Element)> Enumerate<T>(IEnumerable<T> source)
+    {
+        int index = 0;
+        foreach (var element in source)
+        {
+            yield return (index++, element);
+        }
+    }
+
+    public static string SubstringByByteOffset(string s, int start)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(s);
+        byte[] substringBytes = new byte[bytes.Length - start];
+        Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
+        return Encoding.UTF8.GetString(substringBytes);
+    }
+
+    public static string SubstringByByteOffset(string s, int start, int end)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(s);
+        if (end > bytes.Length || start > end)
+        {
+            throw new ArgumentOutOfRangeException("Invalid range");
+        }
+        byte[] substringBytes = new byte[end - start];
+        Array.Copy(bytes, start, substringBytes, 0, end - start);
+        return Encoding.UTF8.GetString(substringBytes);
+    }
+
     /// <summary>
     /// Cleans text by removing control characters and normalizing whitespace
     /// </summary>
@@ -17,9 +130,9 @@ public static class TokenizationUtils
         var cleanedString = new StringBuilder(token.Text.Length);
         var characterMapping = new List<uint>(token.Text.Length);
 
-        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
+        foreach (var (character, position) in token.Text.EnumerateRunes().Zip(token.ReferenceOffsets))
         {
-            if (IsControl(character, strict) || character == '\x00' || character == '\uFFFD')
+            if (IsControl(character, strict) || character == new Rune('\x00') || character == new Rune('\uFFFD'))
             {
                 continue;
             }
@@ -145,6 +258,11 @@ public static class TokenizationUtils
         return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character));
     }
 
+    public static bool IsWhitespace(Rune character)
+    {
+        return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character.Value));
+    }
+
     /// <summary>
     /// This is a custom method to check if a character is a control character. The BERT tokenizer is
     /// taking any character whose unicode category starts with `C` as a control character, which includes
@@ -177,6 +295,33 @@ public static class TokenizationUtils
         else
         {
             return char.IsControl(character);
+        }
+    }
+
+    public static bool IsControl(Rune character, bool strict)
+    {
+        if (Constants.AdditionalWhitespaceChars.Select(c => new Rune(c)).Contains(character))
+        {
+            return false;
+        }
+
+        if (strict)
+        {
+            var u32Char = Convert.ToUInt32(character.Value);
+            return (u32Char <= 0x001F)
+                || (0x0080 <= u32Char && u32Char <= 0x009F)
+                || (0xE0020 <= u32Char && u32Char <= 0xE007F)
+                || (0xE000 <= u32Char && u32Char <= 0xF8FF)
+                || (0xF0000 <= u32Char && u32Char <= 0xFFFFD)
+                || (0x100000 <= u32Char && u32Char <= 0x10FFFD)
+                || (0xD800 <= u32Char && u32Char <= 0xDB7F)
+                || (0xDB80 <= u32Char && u32Char <= 0xDBFF)
+                || (0xDC00 <= u32Char && u32Char <= 0xDFFF)
+                || Constants.ControlChars.Contains(u32Char);
+        }
+        else
+        {
+            return Rune.IsControl(character);
         }
     }
 
@@ -250,32 +395,49 @@ public static class TokenizationUtils
     /// </summary>
     public static void DecomposeNfkc(Token token)
     {
-        var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
-        var decomposedString = new StringBuilder(normalizedString.Length);
-        var characterMapping = new List<uint>();
-
-        int originalIndex = 0;
-        foreach (var character in normalizedString)
+        int capacity = Encoding.UTF8.GetByteCount(token.Text);
+        StringBuilder decomposedString = new StringBuilder(capacity);
+        List<uint> characterMapping = new List<uint>(capacity);
+        int curPosition = 0;
+        string normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
+        var itr = TokenizationUtils.CharIndicesForRunes(normalizedString);
+        foreach (var (i, character) in itr)
         {
-            decomposedString.Append(character);
+            var extraCharSize = 0;
 
-            // Assuming each character in the normalized string maps to one character in the original string
-            if (originalIndex < token.ReferenceOffsets.Count)
+            //if (Rune.IsLetterOrDigit(character) && !character.IsAscii && character.IsBmp && i != 0)
+            //    extraCharSize = (character.Utf16SequenceLength - character.Utf8SequenceLength);
+
+            //HINT: [@eslam] check if character is removed from the original text after normalization
+            if (!token.Text.EnumerateRunes().Contains(character))
+                extraCharSize = -1;
+
+            decomposedString.Append(character);
+            if (extraCharSize > 0)
             {
-                characterMapping.Add(token.ReferenceOffsets[originalIndex]);
+                curPosition -= extraCharSize;
+            }
+            // Assuming each character in the normalized string maps to one character in the original string
+            if (curPosition < token.ReferenceOffsets.Count)
+            {
+                characterMapping.Add(token.ReferenceOffsets[curPosition]);
             }
             else
             {
                 // Handle cases where normalization adds characters
                 characterMapping.Add(token.ReferenceOffsets.LastOrDefault());
             }
-
-            originalIndex++;
+            if (extraCharSize < 0)
+            {
+                curPosition -= extraCharSize;
+            }
+            curPosition += 1; // Adjust based on Unicode character width if needed
         }
 
-        token.Text = decomposedString.ToString();
+        token.Text = decomposedString.ToString();//.Normalize(NormalizationForm.FormKC);
         token.ReferenceOffsets = characterMapping;
-        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
+        token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
+        token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
     }
 
     /// <summary>
@@ -1062,72 +1224,72 @@ public static class TokenizationUtils
     }
 
     public static List<Token> SplitOnBpePairs(
-        Token token, 
-        Func<string, Dictionary<(string, string), long>, (List<string>, List<int>)> bpeFunction, 
-        Dictionary<(string, string), long> bpeRanks, 
-        Dictionary<string, (List<string>, List<int>)> cache, 
+        Token token,
+        Func<string, Dictionary<(string, string), long>, (List<string>, List<int>)> bpeFunction,
+        Dictionary<(string, string), long> bpeRanks,
+        Dictionary<string, (List<string>, List<int>)> cache,
         bool asBytes)
-{
-    var tokens = new List<Token>();
-    string textToProcess;
-    List<uint> referenceOffsets;
+    {
+        var tokens = new List<Token>();
+        string textToProcess;
+        List<uint> referenceOffsets;
 
-    if (asBytes)
-    {
-        // Convert the string to bytes and then map each byte to a character
-        var bytes = Encoding.UTF8.GetBytes(token.Text);
-        var referenceOffsetsPlaceholder = BytesOffsets(token.Text)
-            .Select(pos => token.ReferenceOffsets[pos])
-            .ToList();
-        textToProcess = new string(bytes.Select(b => Constants.BytesToUnicode[b]).ToArray());
-        referenceOffsets = referenceOffsetsPlaceholder;
-    }
-    else
-    {
-        textToProcess = token.Text;
-        referenceOffsets = token.ReferenceOffsets.ToList();
-    }
-
-    bool cached = false;
-    if (cache.TryGetValue(textToProcess, out var cacheValue))
-    {
-        var (cachedTokens, charCounts) = cacheValue;
-        int start = 0;
-        for (int idx = 0; idx < cachedTokens.Count; idx++)
+        if (asBytes)
         {
-            var subToken = cachedTokens[idx];
-            var charCount = charCounts[idx];
-            tokens.Add(new Token(
-                subToken,
-                new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
-                referenceOffsets.GetRange(start, charCount),
-                cachedTokens.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
-            ));
-            start += charCount;
+            // Convert the string to bytes and then map each byte to a character
+            var bytes = Encoding.UTF8.GetBytes(token.Text);
+            var referenceOffsetsPlaceholder = BytesOffsets(token.Text)
+                .Select(pos => token.ReferenceOffsets[pos])
+                .ToList();
+            textToProcess = new string(bytes.Select(b => Constants.BytesToUnicode[b]).ToArray());
+            referenceOffsets = referenceOffsetsPlaceholder;
         }
-        cached = true;
-    }
-
-    if (!cached)
-    {
-        var (bpeOutput, charCounts) = bpeFunction(textToProcess, bpeRanks);
-        cache[textToProcess] = (bpeOutput, charCounts);
-        int start = 0;
-        for (int idx = 0; idx < bpeOutput.Count; idx++)
+        else
         {
-            var subToken = bpeOutput[idx];
-            var charCount = charCounts[idx];
-            tokens.Add(new Token(
-                subToken,
-                new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
-                referenceOffsets.GetRange(start, charCount),
-                bpeOutput.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
-            ));
-            start += charCount;
+            textToProcess = token.Text;
+            referenceOffsets = token.ReferenceOffsets.ToList();
         }
+
+        bool cached = false;
+        if (cache.TryGetValue(textToProcess, out var cacheValue))
+        {
+            var (cachedTokens, charCounts) = cacheValue;
+            int start = 0;
+            for (int idx = 0; idx < cachedTokens.Count; idx++)
+            {
+                var subToken = cachedTokens[idx];
+                var charCount = charCounts[idx];
+                tokens.Add(new Token(
+                    subToken,
+                    new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
+                    referenceOffsets.GetRange(start, charCount),
+                    cachedTokens.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
+                ));
+                start += charCount;
+            }
+            cached = true;
+        }
+
+        if (!cached)
+        {
+            var (bpeOutput, charCounts) = bpeFunction(textToProcess, bpeRanks);
+            cache[textToProcess] = (bpeOutput, charCounts);
+            int start = 0;
+            for (int idx = 0; idx < bpeOutput.Count; idx++)
+            {
+                var subToken = bpeOutput[idx];
+                var charCount = charCounts[idx];
+                tokens.Add(new Token(
+                    subToken,
+                    new Offset(referenceOffsets[start], referenceOffsets[start + charCount - 1] + 1),
+                    referenceOffsets.GetRange(start, charCount),
+                    bpeOutput.Count > 1 ? (idx == 0 ? Mask.Begin : Mask.Continuation) : Mask.None
+                ));
+                start += charCount;
+            }
+        }
+        return tokens;
     }
-    return tokens;
-}
 
 
     private static void FixMask(List<Token> tokens)

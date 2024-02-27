@@ -19,4 +19,10 @@
     <ProjectReference Include="..\..\src\Lokad.Tokenizers\Lokad.Tokenizers.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

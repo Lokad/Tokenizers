@@ -13,7 +13,7 @@ namespace Lokad.Tokenizers.Tokenizer;
 /// - (optional) lower casing
 /// - SentencePiece decomposition
 /// </summary>
-public class XLMRobertaTokenizer
+public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 {
     private SentencePieceModel _model;
     private XlmRobertaVocab _vocab;
@@ -24,9 +24,10 @@ public class XLMRobertaTokenizer
     /// Expects a json vocab file and a SentencePiece protobuf file as an input.
     /// </summary>
     public XLMRobertaTokenizer(string path, bool lowerCase)
+        : base(XlmRobertaVocab.FromFile(path), lowerCase, false)
     {
         _model = SentencePieceModel.FromFile(path);
-        _vocab = XlmRobertaVocab.FromFile(path);
+        _vocab = Vocab;
         _lowerCase = lowerCase;
     }
 
@@ -35,9 +36,10 @@ public class XLMRobertaTokenizer
     /// Expects a json vocab file, a SentencePiece protobuf file, and a special token mapping file as inputs.
     /// </summary>
     public XLMRobertaTokenizer(string path, bool lowerCase, string specialTokenMappingPath)
+        : base(XlmRobertaVocab.FromFileWithSpecialTokenMapping(path, specialTokenMappingPath), lowerCase, false)
     {
         _model = SentencePieceModel.FromFile(path);
-        _vocab = XlmRobertaVocab.FromFileWithSpecialTokenMapping(path, specialTokenMappingPath);
+        _vocab = Vocab;
         _lowerCase = lowerCase;
     }
 
@@ -45,6 +47,7 @@ public class XLMRobertaTokenizer
     /// Create a new instance of a `XLMRobertaTokenizer` from an existing vocabulary and model.
     /// </summary>
     public XLMRobertaTokenizer(XlmRobertaVocab vocab, SentencePieceModel model, bool lowerCase)
+        : base(vocab, lowerCase, false)
     {
         _vocab = vocab;
         _model = model;
@@ -54,10 +57,9 @@ public class XLMRobertaTokenizer
     /// <summary>
     /// Tokenizes the given text into a list of tokens.
     /// </summary>
-    public List<Token> TokenizeToTokens(string text)
+    public override List<Token> TokenizeToTokens(Token tokenRef)
     {
-        var tokenRef = new Token(text);
-        var tokens = TokenizationUtils.SplitOnSpecialTokens(tokenRef, _vocab)
+        var tokens = SplitOnSpecialTokens(tokenRef, _vocab)
             .Select(t => t.Clone())
             .ToList();
 
@@ -75,9 +77,9 @@ public class XLMRobertaTokenizer
 
                 // Manually replacing whitespace characters
                 var newText = new StringBuilder();
-                foreach (var c in token.Text)
+                foreach (var c in token.Text.EnumerateRunes())
                 {
-                    newText.Append(TokenizationUtils.IsWhitespace(c) ? "\u2581" : c.ToString());
+                    newText.Append(TokenizationUtils.IsWhitespace(c) ? new Rune('\u2581') : c.ToString());
                 }
                 token.Text = newText.ToString();
 

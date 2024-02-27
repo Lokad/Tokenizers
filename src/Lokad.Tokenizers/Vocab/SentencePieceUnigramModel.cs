@@ -1,4 +1,7 @@
 ﻿using Lokad.Tokenizers.Tokenizer;
+using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 
 namespace Lokad.Tokenizers.Vocab;
 
@@ -21,13 +24,13 @@ public class TrieNode
     public float Score { get; set; }
     public long Index { get; set; }
     public bool End { get; set; }
-    public Dictionary<char, TrieNode> Children { get; set; }
+    public Dictionary<Rune, TrieNode> Children { get; set; }
 
     public TrieNode(string text)
     {
         Text = text;
-        Len = text.Length;
-        Children = new Dictionary<char, TrieNode>();
+        Len = new StringInfo(text).LengthInTextElements;
+        Children = new Dictionary<Rune, TrieNode>();
     }
 }
 
@@ -57,8 +60,10 @@ public class SentencePieceModel
     {
         var node = Root;
 
-        foreach (var character in word)
+        var runes = word.ToCharArray().Where(c => Rune.IsValid(c)).Select(c => new Rune(c)).ToList();
+        for (int i = 0; i < runes.Count(); i++)
         {
+            var character = runes[i];
             if (!node.Children.ContainsKey(character))
             {
                 var text = node.Text + character;
@@ -67,19 +72,21 @@ public class SentencePieceModel
 
             node = node.Children[character];
 
-            if (word.Last() == character)
+            if (i == runes.Count - 1)
             {
                 node.End = true;
                 node.Score = score;
                 node.Index = index;
             }
         }
+
     }
 
     public List<TrieNode> CommonPrefixSearch(string text)
     {
         var results = new List<TrieNode>();
-        var characters = text.ToCharArray();
+        var characters = text.EnumerateRunes().ToList();
+        if (characters.Count == 0) return results;
         var node = Root.Children.GetValueOrDefault(characters[0]);
 
         if (node != null)
@@ -116,8 +123,11 @@ public class SentencePieceModel
 
     public List<Node?> DecodeForwardTokenRef(Token token)
     {
-        var charPositions = token.Text.Select((c, i) => i).ToList();
-        charPositions.Add(token.Text.Length);
+        List<int> charPositions = new List<int>();
+
+        var runes = TokenizationUtils.CharIndicesForRunes(token.Text).ToList();
+        runes.ForEach((i => charPositions.Add(i.Index)));
+        charPositions.Add(TokenizationUtils.GetUtf8BytesCount(token.Text));
 
         var results = new Node?[charPositions.Count];
         var scores = Enumerable.Repeat(float.NegativeInfinity, charPositions.Count).ToArray();
@@ -125,7 +135,9 @@ public class SentencePieceModel
 
         for (var charStart = 0; charStart < charPositions.Count - 1; charStart++)
         {
-            var matches = CommonPrefixSearch(token.Text.Substring(charPositions[charStart]));
+            var prefix = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart]);
+            //token.Text.EnumerateRunes().Skip(charPositions[charStart]).ToList().ForEach(r => prefix.Append(r.ToString()));
+            var matches = CommonPrefixSearch(prefix.ToString());
 
             foreach (var node in matches)
             {
@@ -134,9 +146,10 @@ public class SentencePieceModel
 
                 if (localScore > scores[charEnd])
                 {
+                    var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charEnd]);
                     results[charEnd] = new Node
                     {
-                        Text = token.Text.Substring(charPositions[charStart], charPositions[charEnd] - charPositions[charStart]),
+                        Text = t,
                         Score = localScore,
                         Index = node.Index,
                         Start = charStart,
@@ -150,14 +163,15 @@ public class SentencePieceModel
 
             if (scores[charStart + 1] <= float.MinValue)
             {
+                var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charStart + 1]);
                 results[charStart + 1] = new Node
                 {
-                    Text = token.Text.Substring(charPositions[charStart], charPositions[charStart + 1] - charPositions[charStart]),
+                    Text = t,
                     Score = float.MinValue,
                     Index = 0,
                     Start = charStart,
                     End = charStart + 1,
-                    ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(charStart + 1 - charStart).ToArray()
+                    ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(1).ToArray()
                 };
 
                 scores[charStart + 1] = 0f;
@@ -166,7 +180,6 @@ public class SentencePieceModel
 
         return results.ToList();
     }
-
     public List<Node> DecodeBackward(Node?[] nodes)
     {
         var bestSequence = new List<Node>();
@@ -185,27 +198,43 @@ public class SentencePieceModel
 
     public List<Token> ParseNodesToTokens(List<Node> nodes)
     {
-        var output = new List<Token>();
-        var isPrevUnknown = false;
+        List<Token> output = new List<Token>(nodes.Count + 1);
+        bool isPrevUnknown = false;
 
-        foreach (var node in nodes)
+        foreach (Node node in nodes)
         {
-            if (isPrevUnknown && node.Index == 0)
+            // Group unknown tokens
+            if (isPrevUnknown && (node.Index == 0))
             {
-                var prevToken = output.Last();
-                prevToken.Text += node.Text;
-                prevToken.ReferenceOffsets = prevToken.ReferenceOffsets.Concat(node.ReferenceOffsets).ToArray();
+                Token prevToken = output.Last();
+                StringBuilder text = new StringBuilder(prevToken.Text);
+                text.Append(node.Text);
+                List<uint> referenceOffsets = new List<uint>();
+                referenceOffsets.AddRange(node.ReferenceOffsets);
+                Token consolidatedUnknown = new Token(text.ToString())
+                {
+                    Text = text.ToString(),
+                    Offset = new Offset(0, 0),
+                    ReferenceOffsets = referenceOffsets,
+                    Mask = Mask.Unknown,
+                };
+                output.RemoveAt(output.Count - 1);
+                output.Add(consolidatedUnknown);
             }
             else
             {
-                output.Add(new Token(node.Text, node.ReferenceOffsets));
+                output.Add(new Token(node.Text)
+                {
+                    Text = node.Text,
+                    Offset = new Offset(0, 0),
+                    ReferenceOffsets = node.ReferenceOffsets.ToList(),
+                    Mask = Mask.None,
+                });
             }
-
             isPrevUnknown = node.Index == 0;
         }
 
         PopulateMasks(output, '\u2581');
-
         return output;
     }
 

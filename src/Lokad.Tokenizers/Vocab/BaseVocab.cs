@@ -1,9 +1,7 @@
 ﻿using System.Text.Json;
-using ProtoBuf; 
+using Google.Protobuf;
 
 namespace Lokad.Tokenizers.Vocab;
-
-// TODO: ChatGPT port of https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/base_vocab.rs
 
 public static class VocabHelper
 {
@@ -37,7 +35,8 @@ public static class VocabHelper
             throw new FileNotFoundTokenizerException($"{path} vocabulary file not found");
 
         using var stream = File.OpenRead(path);
-        return Serializer.Deserialize<ModelProto>(stream);
+
+        return ModelProto.Parser.ParseFrom(stream);
     }
 
     public static Dictionary<string, long> ReadProtobufFile(string path)
@@ -183,7 +182,7 @@ public class BaseVocab : IVocab
 
     public long TokenToId(string token)
     {
-        if (SpecialValues.TryGetValue(token, out long id))
+        if (SpecialValues.TryGetValue(token, out var id))
             return id;
         return Values.TryGetValue(token, out id) ? id : Values[GetUnknownValue()];
     }
