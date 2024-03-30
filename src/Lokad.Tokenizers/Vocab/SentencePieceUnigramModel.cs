@@ -60,8 +60,8 @@ public class SentencePieceModel
     {
         var node = Root;
 
-        var runes = word.ToCharArray().Where(c => Rune.IsValid(c)).Select(c => new Rune(c)).ToList();
-        for (int i = 0; i < runes.Count(); i++)
+        var runes = word.EnumerateRunes().ToList();
+        for (int i = 0; i < runes.Count; i++)
         {
             var character = runes[i];
             if (!node.Children.ContainsKey(character))
@@ -87,7 +87,8 @@ public class SentencePieceModel
         var results = new List<TrieNode>();
         var characters = text.EnumerateRunes().ToList();
         if (characters.Count == 0) return results;
-        var node = Root.Children.GetValueOrDefault(characters[0]);
+        var currentChar = characters[0];
+        var node = Root.Children.GetValueOrDefault(currentChar);
 
         if (node != null)
         {
@@ -101,7 +102,8 @@ public class SentencePieceModel
             return results;
         }
 
-        foreach (var character in characters.Skip(1))
+        var remainingCharacters = characters.Skip(1).ToList();
+        foreach (var character in remainingCharacters)
         {
             node = node.Children.GetValueOrDefault(character);
 

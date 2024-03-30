@@ -427,4 +427,136 @@ public class XLMRobertaTokenizerTests
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
         Assert.Equal(expected_result.TokenIds, result.TokenIds);
     }
+
+    [Fact]
+    public async Task Test_E5_Small_Input_Texts_HuggingFace_Default_Example_Should_Pass()
+    {
+        // Given
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var input_texts = new List<string> {
+            "query: how much protein should a female eat",
+            "query: 南瓜的家常做法",
+            "passage: As a general guideline, the CDC's average requirement of protein for women ages 19 to 70 is 46 grams per day. But, as you can see from this chart, you'll need to increase that if you're expecting or training for a marathon. Check out the chart below to see how much protein you should be eating each day.",
+            "passage: 1.清炒南瓜丝 原料:嫩南瓜半个 调料:葱、盐、白糖、鸡精 做法: 1、南瓜用刀薄薄的削去表面一层皮,用勺子刮去瓤 2、擦成细丝(没有擦菜板就用刀慢慢切成细丝) 3、锅烧热放油,入葱花煸出香味 4、入南瓜丝快速翻炒一分钟左右,放盐、一点白糖和鸡精调味出锅"
+        };
+
+        var expected_result = JsonConvert.DeserializeObject<List<List<long>>>(File.ReadAllText("./Fixture/e5-small-input-texts-tokenized-hf-default-example.json"));
+
+        foreach (var (First, Second) in input_texts.Zip(expected_result))
+        {
+            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            // Then
+            Assert.Equal(Second.Count, result.TokenIds.Count);
+            Assert.Equal(Second, result.TokenIds);
+        }
+    }
+
+    [Fact]
+    public async Task Test_E5_Small_Input_Texts_LLM_Example1_Should_Pass()
+    {
+        // Given
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var input_texts = new List<string> {
+            "query: Wie viel Protein sollte eine Frau essen?",
+            "passage: Als allgemeine Richtlinie gilt, dass der durchschnittliche Proteinbedarf der CDC für Frauen im Alter von 19 bis 70 Jahren 46 Gramm pro Tag beträgt. Wie Sie dieser Tabelle entnehmen können, müssen Sie diesen Wert jedoch erhöhen, wenn Sie schwanger sind oder für einen Marathon trainieren. Sehen Sie sich die folgende Tabelle an, um zu sehen, wie viel Protein Sie täglich zu sich nehmen sollten.",
+            "query: ¿Cuánta proteína debe comer una mujer?",
+            "passage: Como pauta general, el requerimiento promedio de proteína de los CDC para mujeres de 19 a 70 años es de 46 gramos por día. Pero, como puede ver en esta tabla, deberá aumentarlo si está embarazada o entrenando para un maratón. Consulte la tabla a continuación para ver cuánta proteína debe consumir cada día.",
+            "query: كم يجب أن تأكل المرأة من البروتين؟",
+            "passage: كدليل عام، فإن متطلبات البروتين المتوسطة لمراكز السيطرة على الأمراض للنساء اللواتي تتراوح أعمارهن بين 19 و70 عامًا هي 46 جرامًا في اليوم. ولكن، كما ترى من هذا الرسم البياني، ستحتاجين إلى زيادة ذلك إذا كنتِ تتوقعين أو تتدربين من أجل سباق الماراثون. تحقق من الرسم البياني أدناه لمعرفة مقدار البروتين الذي يجب أن تتناولينه كل يوم."
+        };
+
+        var expected_result = JsonConvert.DeserializeObject<List<List<long>>>(File.ReadAllText("./Fixture/e5-small-input-texts-tokenized-llm-example1.json"));
+
+        foreach (var (First, Second) in input_texts.Zip(expected_result))
+        {
+            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            // Then
+            Assert.Equal(Second.Count, result.TokenIds.Count);
+            Assert.Equal(Second, result.TokenIds);
+        }
+    }
+
+    [Fact]
+    public async Task Test_E5_Small_Input_Texts_LLM_French_Examples_Should_Pass()
+    {
+        // Given
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var input_texts = new List<string> {
+            "query: Où est l'arrêt de bus le plus proche ?",
+            "passage: L'arrêt de bus le plus proche se trouve à l'angle de la rue de Rivoli et de la rue Saint-Antoine.",
+            "query: Quel est le meilleur restaurant de Paris ?",
+            "passage: Le meilleur restaurant de Paris est le Jules Verne, situé au deuxième étage de la tour Eiffel.",
+            "query: Quelle est la meilleure façon de visiter le Louvre ?",
+            "passage: La meilleure façon de visiter le Louvre est de prendre un audioguide et de suivre un itinéraire thématique."      
+        };
+
+        var expected_result = JsonConvert.DeserializeObject<List<List<long>>>(File.ReadAllText("./Fixture/e5-small-input-texts-tokenized-llm-french-examples.json"));
+
+        // When
+        foreach (var (First, Second) in input_texts.Zip(expected_result))
+        {
+            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            // Then
+            Assert.Equal(Second.Count, result.TokenIds.Count);
+            Assert.Equal(Second, result.TokenIds);
+        }
+    }
+
+    [Fact]
+    public async Task Test_E5_Small_Input_Texts_LLM_German_Examples_Should_Pass()
+    {
+        // Given
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var input_texts = new List<string> {
+            "query: Wo ist die nächste Bushaltestelle?",
+            "passage: Die nächste Bushaltestelle befindet sich an der Ecke Rivolistraße und Saint-Antoine-Straße.",
+            "query: Welches ist das beste Restaurant in Paris?",
+            "passage: Das beste Restaurant in Paris ist das Jules Verne, das sich im zweiten Stock des Eiffelturms befindet.",
+            "query: Wie kann man den Louvre am besten besichtigen?",
+            "passage: Die beste Möglichkeit, den Louvre zu besichtigen, ist, einen Audioguide zu nehmen und einem thematischen Rundgang zu folgen."
+        };
+
+        var expected_result = JsonConvert.DeserializeObject<List<List<long>>>(File.ReadAllText("./Fixture/e5-small-input-texts-tokenized-llm-german-examples.json"));
+
+        // When
+        foreach (var (First, Second) in input_texts.Zip(expected_result))
+        {
+            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            // Then
+            Assert.Equal(Second.Count, result.TokenIds.Count);
+            Assert.Equal(Second, result.TokenIds);
+        }
+    }
+
+    [Fact]
+    public async Task Test_E5_Small_Input_Texts_LLM_Spanish_Examples_Should_Pass()
+    {
+        // Given
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var input_texts = new List<string> {
+            "query: ¿Dónde está la parada de autobús más cercana?",
+            "passage: La parada de autobús más cercana se encuentra en la esquina de la calle de Rivoli y de la calle Saint-Antoine.",
+            "query: ¿Cuál es el mejor restaurante de París?",
+            "passage: El mejor restaurante de París es el Jules Verne, situado en el segundo piso de la torre Eiffel.",
+            "query: ¿Cuál es la mejor manera de visitar el Louvre?",
+            "passage: La mejor manera de visitar el Louvre es tomar una audioguía y seguir un itinerario temático."
+        };
+
+        var expected_result = JsonConvert.DeserializeObject<List<List<long>>>(File.ReadAllText("./Fixture/e5-small-input-texts-tokenized-llm-spanish-examples.json"));
+
+        // When
+        foreach (var (First, Second) in input_texts.Zip(expected_result))
+        {
+            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            // Then
+            Assert.Equal(Second.Count, result.TokenIds.Count);
+            Assert.Equal(Second, result.TokenIds);
+        }
+    }
+
 }
