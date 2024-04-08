@@ -1,7 +1,7 @@
 # Lokad.Tokenizers
 
-Port of `rust-tokenizers` to C#/.NET
+Partial port of `rust-tokenizers` to C#/.NET
 
-Status: incomplete, untested, work-in-progress
+Status: the `XLMRobertaTokenizer` model used for `multilingual-e5-large` (text embedding) is working and unit tested.
 
 See https://github.com/guillaume-be/rust-tokenizers
