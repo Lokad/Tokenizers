@@ -7,6 +7,23 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Fixture\e5-small-input-texts-tokenized-hf-default-example.json" />
+    <None Remove="Fixture\e5-small-input-texts-tokenized-llm-example1.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Fixture\e5-small-input-texts-tokenized-llm-example1.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Fixture\e5-small-input-texts-tokenized-hf-default-example.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.3" />
     <PackageReference Include="xunit" Version="2.5.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0">
@@ -20,6 +37,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Fixture\e5-small-input-texts-tokenized-llm-french-examples.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Fixture\e5-small-input-texts-tokenized-llm-german-examples.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Fixture\e5-small-input-texts-tokenized-llm-spanish-examples.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
