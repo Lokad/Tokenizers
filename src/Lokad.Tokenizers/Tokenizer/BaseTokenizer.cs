@@ -716,12 +716,45 @@ public class BaseTokenizer<T> where T : IVocab
             Masks = tokens.Masks,
         };
 
+        TokenIdsWithOffsets? token_ids_with_offsets_2 = null;
+        var len_2 = 0;
+        if (text2 != null)
+        {
+            var tokens2 = TokenizeWithOffsets(text2);
+            var token_ids_2 = ConvertTokensToIds(tokens2.Tokens);
+            len_2 = token_ids_2.Count;
+            token_ids_with_offsets_2 = text2 == null ? null : new TokenIdsWithOffsets()
+            {
+                Ids = token_ids_2,
+                Offsets = tokens2.Offsets,
+                ReferenceOffsets = tokens2.ReferenceOffsets.Select(_ => _.ToList()).ToList(),
+                Masks = tokens2.Masks,
+            };
+        }
 
-        var total_len = len_1; // + len_2 + additional_tokens.token_ids.len();
+        var additional_tokens = tokenizer.BuildInputWithSpecialTokens(
+            tokens1: new TokenIdsWithOffsets
+            {
+                Ids = new List<long>(),
+                Masks = new List<Mask>(),
+                Offsets = new List<Offset?>(),
+                ReferenceOffsets = new List<List<uint>>()
+            },
+            tokens2: token_ids_with_offsets_2 == null ? null : new TokenIdsWithOffsets
+            {
+                Ids = new List<long>(),
+                Masks = new List<Mask>(),
+                Offsets = new List<Offset?>(),
+                ReferenceOffsets = new List<List<uint>>()
+            }
+            );
+
+
+        var total_len = len_1 + len_2 + additional_tokens.TokenIds.Count;
         var num_truncated_tokens = total_len > maxLen ? total_len - maxLen : 0;
 
-        var (token_ids_with_offsets_1_x, token_ids_with_offsets_2, overflowing_tokens, _overflowing_offsets) =
-            TokenizationUtils.TruncateSequences(token_ids_with_offsets_1, null /*token_ids_with_offsets_2*/,
+        var (token_ids_with_offsets_1_x, token_ids_with_offsets_2_x, overflowing_tokens, _overflowing_offsets) =
+            TokenizationUtils.TruncateSequences(token_ids_with_offsets_1, token_ids_with_offsets_2,
                 num_truncated_tokens, truncationStrategy, stride);
         token_ids_with_offsets_1 = token_ids_with_offsets_1_x;
 

@@ -490,7 +490,7 @@ public class XLMRobertaTokenizerTests
             "query: Quel est le meilleur restaurant de Paris ?",
             "passage: Le meilleur restaurant de Paris est le Jules Verne, situé au deuxième étage de la tour Eiffel.",
             "query: Quelle est la meilleure façon de visiter le Louvre ?",
-            "passage: La meilleure façon de visiter le Louvre est de prendre un audioguide et de suivre un itinéraire thématique."      
+            "passage: La meilleure façon de visiter le Louvre est de prendre un audioguide et de suivre un itinéraire thématique."
         };
 
         var expected_result = JsonConvert.DeserializeObject<List<List<long>>>(File.ReadAllText("./Fixture/e5-small-input-texts-tokenized-llm-french-examples.json"));
@@ -557,6 +557,39 @@ public class XLMRobertaTokenizerTests
             Assert.Equal(Second.Count, result.TokenIds.Count);
             Assert.Equal(Second, result.TokenIds);
         }
+    }
+
+    [Fact]
+    public async Task TestTruncateMaxLen()
+    {
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var original_string = "Wondering how this will get tokenized 🤔 ?";
+
+        var expected_result = new TokenizedInput
+        {
+            TokenIds = new List<long> { 0, 76648, 214, 3642, 2 },
+            SegmentIds = new List<byte> { },
+            SpecialTokensMask = new List<byte> { },
+            OverflowingTokens = new List<long>(),
+            NumTruncatedTokens = 0,
+            TokenOffsets = new List<Offset?> {
+              null,
+                new Offset(0,  6 ),
+                new Offset(6,  9 ),
+                new Offset(9,  13 ),
+              null,
+            },
+            ReferenceOffsets = new List<List<uint>>(),
+            Mask = new List<Mask> { }
+        };
+
+        // When
+        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 5, TruncationStrategy.OnlyFirst, 0);
+
+        // Then
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
+        Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
     }
 
 }
