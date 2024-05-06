@@ -410,7 +410,7 @@ public static class TokenizationUtils
 
             //HINT: [@eslam] check if character is removed from the original text after normalization
             if (!token.Text.EnumerateRunes().Contains(character))
-                extraCharSize = -1;
+                extraCharSize -= character.Utf8SequenceLength - character.Utf16SequenceLength;// -1;
 
             decomposedString.Append(character);
             if (extraCharSize > 0)
