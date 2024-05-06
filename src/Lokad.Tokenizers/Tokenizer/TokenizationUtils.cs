@@ -93,6 +93,15 @@ public static class TokenizationUtils
         }
     }
 
+    public static IEnumerable<(Rune Character, int ExtraCharSize)> NFKC(string str)
+    {
+        var runes = str.EnumerateRunes().ToList();
+        for (int i = 0; i < runes.Count; i++)
+        {
+            yield return (runes[i], (runes[i].Utf8SequenceLength - runes[i].Utf16SequenceLength));
+        }
+    }
+
     public static IEnumerable<(int Index, T Element)> Enumerate<T>(IEnumerable<T> source)
     {
         int index = 0;
@@ -400,17 +409,13 @@ public static class TokenizationUtils
         List<uint> characterMapping = new List<uint>(capacity);
         int curPosition = 0;
         string normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
-        var itr = TokenizationUtils.CharIndicesForRunes(normalizedString);
-        foreach (var (i, character) in itr)
+        foreach (var (character, currentExtraCharSize) in TokenizationUtils.NFKC(normalizedString))
         {
             var extraCharSize = 0;
 
-            //if (Rune.IsLetterOrDigit(character) && !character.IsAscii && character.IsBmp && i != 0)
-            //    extraCharSize = (character.Utf16SequenceLength - character.Utf8SequenceLength);
-
             //HINT: [@eslam] check if character is removed from the original text after normalization
             if (!token.Text.EnumerateRunes().Contains(character))
-                extraCharSize -= character.Utf8SequenceLength - character.Utf16SequenceLength;// -1;
+                extraCharSize -= currentExtraCharSize;
 
             decomposedString.Append(character);
             if (extraCharSize > 0)
