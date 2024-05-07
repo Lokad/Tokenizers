@@ -29,7 +29,7 @@ public class TrieNode
     public TrieNode(string text)
     {
         Text = text;
-        Len = new StringInfo(text).LengthInTextElements;
+        Len = text.EnumerateRunes().Count();
         Children = new Dictionary<Rune, TrieNode>();
     }
 }

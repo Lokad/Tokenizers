@@ -592,4 +592,34 @@ public class XLMRobertaTokenizerTests
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
     }
 
+    [Fact]
+    public async Task TestSpecialChar()
+    {
+        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
+        var original_string = "´";
+
+        var expected_result = new TokenizedInput
+        {
+            TokenIds = new List<long> { 0, 3309, 2 },
+            SpecialTokensMask = new List<byte> { },
+            OverflowingTokens = new List<long>(),
+            NumTruncatedTokens = 0,
+            TokenOffsets = new List<Offset?> {
+            null,
+            new Offset(0,  1 ),
+            null,
+            },
+            ReferenceOffsets = new List<List<uint>>(),
+            Mask = new List<Mask> { }
+        };
+
+        // When
+        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 5, TruncationStrategy.OnlyFirst, 0);
+
+        // Then
+        Assert.Equal(expected_result.TokenIds, result.TokenIds);
+        Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
+    }
+
 }
