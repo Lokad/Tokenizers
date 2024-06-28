@@ -46,7 +46,7 @@
     <None Update="Fixture\e5-small-input-texts-tokenized-llm-spanish-examples.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model">
+    <None Update="Fixture\xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

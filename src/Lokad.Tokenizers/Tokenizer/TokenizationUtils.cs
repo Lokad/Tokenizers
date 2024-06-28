@@ -2,6 +2,7 @@
 using System.Text;
 using Lokad.Tokenizers.Vocab;
 using System.Globalization;
+using Lokad.Tokenizers.Exceptions;
 
 namespace Lokad.Tokenizers.Tokenizer;
 
@@ -60,8 +61,8 @@ public static class TokenizationUtils
 
     public static IEnumerable<(int Index, char Character)> CharIndices(string str)
     {
-        int index = 0;
-        foreach (char character in str)
+        var index = 0;
+        foreach (var character in str)
         {
             yield return (index, character);
             index += GetUtf8BytesCount(character.ToString());
@@ -70,9 +71,9 @@ public static class TokenizationUtils
 
     public static IEnumerable<(int Index, string Character)> CharIndicesForTextElements(string str)
     {
-        int index = 0;
+        var index = 0;
         var strInfo = GetStringInfo(str);
-        for (int i = 0; i < strInfo.LengthInTextElements; i++)
+        for (var i = 0; i < strInfo.LengthInTextElements; i++)
         {
             var c = strInfo.SubstringByTextElements(i, 1);
             yield return (index, c);
@@ -85,7 +86,7 @@ public static class TokenizationUtils
     {
         var front_offset = 0;
         var runes = str.EnumerateRunes().ToList();
-        for (int i = 0; i < runes.Count; i++)
+        for (var i = 0; i < runes.Count; i++)
         {
             var index = front_offset;
             yield return (index, runes[i]);
@@ -96,7 +97,7 @@ public static class TokenizationUtils
     public static IEnumerable<(Rune Character, int ExtraCharSize)> NFKC(string str)
     {
         var runes = str.EnumerateRunes().ToList();
-        for (int i = 0; i < runes.Count; i++)
+        for (var i = 0; i < runes.Count; i++)
         {
             yield return (runes[i], (runes[i].Utf8SequenceLength - runes[i].Utf16SequenceLength));
         }
@@ -104,7 +105,7 @@ public static class TokenizationUtils
 
     public static IEnumerable<(int Index, T Element)> Enumerate<T>(IEnumerable<T> source)
     {
-        int index = 0;
+        var index = 0;
         foreach (var element in source)
         {
             yield return (index++, element);
@@ -113,20 +114,20 @@ public static class TokenizationUtils
 
     public static string SubstringByByteOffset(string s, int start)
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(s);
-        byte[] substringBytes = new byte[bytes.Length - start];
+        var bytes = Encoding.UTF8.GetBytes(s);
+        var substringBytes = new byte[bytes.Length - start];
         Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
         return Encoding.UTF8.GetString(substringBytes);
     }
 
     public static string SubstringByByteOffset(string s, int start, int end)
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(s);
+        var bytes = Encoding.UTF8.GetBytes(s);
         if (end > bytes.Length || start > end)
         {
             throw new ArgumentOutOfRangeException("Invalid range");
         }
-        byte[] substringBytes = new byte[end - start];
+        var substringBytes = new byte[end - start];
         Array.Copy(bytes, start, substringBytes, 0, end - start);
         return Encoding.UTF8.GetString(substringBytes);
     }
@@ -161,13 +162,13 @@ public static class TokenizationUtils
     /// </summary>
     public static void ReplaceString(Token token, string pattern, string replacementString)
     {
-        int patternLen = pattern.Length;
-        int patternCharLen = pattern.ToCharArray().Length;
-        int replacementCharLen = replacementString.ToCharArray().Length;
+        var patternLen = pattern.Length;
+        var patternCharLen = pattern.ToCharArray().Length;
+        var replacementCharLen = replacementString.ToCharArray().Length;
 
         // Find all matches from the end to the beginning
-        List<int> matches = new List<int>();
-        int index = token.Text.LastIndexOf(pattern);
+        var matches = new List<int>();
+        var index = token.Text.LastIndexOf(pattern);
         while (index != -1)
         {
             matches.Add(index);
@@ -187,7 +188,7 @@ public static class TokenizationUtils
             token.Text = token.Text.Remove(hit, patternLen).Insert(hit, replacementString);
 
             int charPosition = charIndices[hit];
-            uint referenceOffset = token.ReferenceOffsets[charPosition];
+            var referenceOffset = token.ReferenceOffsets[charPosition];
 
             // Update the reference offsets
             token.ReferenceOffsets = token.ReferenceOffsets
@@ -203,14 +204,14 @@ public static class TokenizationUtils
     /// </summary>
     public static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
     {
-        List<Token> result = new List<Token>();
+        var result = new List<Token>();
 
-        int currentIndex = 0;
+        var currentIndex = 0;
         while (currentIndex < token.Text.Length)
         {
-            int matchLength = 0;
-            int matchCharCount = 0;
-            Mask matchMask = Mask.None;
+            var matchLength = 0;
+            var matchCharCount = 0;
+            var matchMask = Mask.None;
 
             foreach (var specialValue in vocab.SpecialValues.Keys)
             {
@@ -404,11 +405,11 @@ public static class TokenizationUtils
     /// </summary>
     public static void DecomposeNfkc(Token token)
     {
-        int capacity = Encoding.UTF8.GetByteCount(token.Text);
-        StringBuilder decomposedString = new StringBuilder(capacity);
-        List<uint> characterMapping = new List<uint>(capacity);
-        int curPosition = 0;
-        string normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
+        var capacity = Encoding.UTF8.GetByteCount(token.Text);
+        var decomposedString = new StringBuilder(capacity);
+        var characterMapping = new List<uint>(capacity);
+        var curPosition = 0;
+        var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
         foreach (var (character, currentExtraCharSize) in TokenizationUtils.NFKC(normalizedString))
         {
             var extraCharSize = 0;
@@ -465,10 +466,10 @@ public static class TokenizationUtils
 
         if (token.Mask == Mask.None)
         {
-            for (int charIdx = 0; charIdx < token.Text.Length; charIdx++)
+            for (var charIdx = 0; charIdx < token.Text.Length; charIdx++)
             {
-                char c = token.Text[charIdx];
-                int bytesIdx = Encoding.UTF8.GetByteCount(token.Text.Substring(0, charIdx));
+                var c = token.Text[charIdx];
+                var bytesIdx = Encoding.UTF8.GetByteCount(token.Text.Substring(0, charIdx));
                 charCount += 1;
 
                 if (testCharacter(c))
@@ -517,13 +518,13 @@ public static class TokenizationUtils
             var subWords = new List<string>();
             var splits = new List<string>();
 
-            int i = 0;
+            var i = 0;
             foreach (Match hit in patternLookahead.Matches(token.Text))
             {
                 var hitChars = hit.Value.Reverse().ToArray();
                 var start = hitChars[0];
                 var sep = hitChars[1];
-                int endByte = hit.Index + hit.Length - sep.ToString().Length - start.ToString().Length;
+                var endByte = hit.Index + hit.Length - sep.ToString().Length - start.ToString().Length;
                 splits.Add(token.Text.Substring(i, endByte - i));
                 i = endByte;
             }
@@ -538,10 +539,10 @@ public static class TokenizationUtils
             }
 
             var outputTokens = new List<Token>(subWords.Count);
-            int beginChar = 0;
+            var beginChar = 0;
             foreach (var subWord in subWords)
             {
-                int endChar = beginChar + subWord.Length;
+                var endChar = beginChar + subWord.Length;
                 outputTokens.Add(new Token(
                     subWord,
                     new Offset(token.Offset.Begin + (uint)beginChar, token.Offset.Begin + (uint)endChar),
@@ -563,16 +564,16 @@ public static class TokenizationUtils
     public static List<Token> SplitOnRegex(Token token, Regex patternTokenization)
     {
         var tokens = new List<Token>();
-        int beginChar = 0;
+        var beginChar = 0;
 
         foreach (Match hit in patternTokenization.Matches(token.Text))
         {
-            int startByte = hit.Index;
+            var startByte = hit.Index;
             if (startByte > 0)
             {
                 beginChar = token.Text.Substring(0, startByte).Length;
             }
-            int endChar = beginChar + hit.Value.Length;
+            var endChar = beginChar + hit.Value.Length;
 
             tokens.Add(new Token(
                 hit.Value,
@@ -591,15 +592,15 @@ public static class TokenizationUtils
     public static List<Token> SplitAtRegex(Token token, Regex patternTokenization)
     {
         var tokens = new List<Token>();
-        int beginChar = 0;
-        int startByte = 0;
+        var beginChar = 0;
+        var startByte = 0;
 
         foreach (Match hit in patternTokenization.Matches(token.Text))
         {
-            int hitStartByte = hit.Index;
-            int hitStartChar = token.Text.Substring(0, hitStartByte).Length;
-            int hitEndByte = hit.Index + hit.Length;
-            int hitEndChar = beginChar + hit.Value.Length;
+            var hitStartByte = hit.Index;
+            var hitStartChar = token.Text.Substring(0, hitStartByte).Length;
+            var hitEndByte = hit.Index + hit.Length;
+            var hitEndChar = beginChar + hit.Value.Length;
 
             if (!string.IsNullOrWhiteSpace(token.Text.Substring(startByte, hitStartByte - startByte)))
             {
@@ -648,13 +649,13 @@ public static class TokenizationUtils
     public static List<Token> SplitOnSubstr(Token token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
     {
         var tokens = new List<Token>();
-        int charBegin = 0;
-        int bytesBegin = 0;
-        int charCount = 0;
+        var charBegin = 0;
+        var bytesBegin = 0;
+        var charCount = 0;
 
         if (token.Mask == Mask.None)
         {
-            for (int charIdx = 0; charIdx < token.Text.Length; charIdx++)
+            for (var charIdx = 0; charIdx < token.Text.Length; charIdx++)
             {
                 charCount += 1;
                 var (matchedBytes, matchedChars, setMask) = testSubstr(token.Text.Substring(charIdx));
@@ -813,7 +814,7 @@ public static class TokenizationUtils
                     {
                         var overflowTokens = new List<long>(numTokensToRemove + stride);
                         var overflowOffsets = new List<Offset?>(numTokensToRemove + stride);
-                        for (int i = 0; i < numTokensToRemove; i++)
+                        for (var i = 0; i < numTokensToRemove; i++)
                         {
                             if (tokenIdsWithOffsets1.Ids.Count >= tokenIdsWithOffsets2.Ids.Count)
                             {
@@ -847,7 +848,7 @@ public static class TokenizationUtils
                             }
                         }
                         // Handle stride
-                        int windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
+                        var windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
                         if (windowLen > 0)
                         {
                             overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
@@ -870,7 +871,7 @@ public static class TokenizationUtils
                         var overflowOffsets = new List<Offset?>();
 
                         // Truncate the first sequence
-                        for (int i = 0; i < numTokensToRemove; i++)
+                        for (var i = 0; i < numTokensToRemove; i++)
                         {
                             overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
                             tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
@@ -890,7 +891,7 @@ public static class TokenizationUtils
                         }
 
                         // Handle stride
-                        int windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
+                        var windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
                         if (windowLen > 0)
                         {
                             overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
@@ -913,7 +914,7 @@ public static class TokenizationUtils
                         var overflowTokens = new List<long>(numTokensToRemove + stride);
                         var overflowOffsets = new List<Offset?>(numTokensToRemove + stride);
 
-                        for (int i = 0; i < numTokensToRemove; i++)
+                        for (var i = 0; i < numTokensToRemove; i++)
                         {
                             overflowTokens.Insert(0, tokenIdsWithOffsets2.Ids.Last());
                             tokenIdsWithOffsets2.Ids.RemoveAt(tokenIdsWithOffsets2.Ids.Count - 1);
@@ -933,7 +934,7 @@ public static class TokenizationUtils
                         }
 
                         // Handle stride
-                        int windowLen = Math.Min(tokenIdsWithOffsets2.Ids.Count, stride);
+                        var windowLen = Math.Min(tokenIdsWithOffsets2.Ids.Count, stride);
                         if (windowLen > 0)
                         {
                             overflowTokens.InsertRange(0, tokenIdsWithOffsets2.Ids.GetRange(tokenIdsWithOffsets2.Ids.Count - windowLen, windowLen));
@@ -967,7 +968,7 @@ public static class TokenizationUtils
                     var overflowOffsets = new List<Offset?>();
 
                     // Truncate the first sequence
-                    for (int i = 0; i < numTokensToRemove; i++)
+                    for (var i = 0; i < numTokensToRemove; i++)
                     {
                         overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
                         tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
@@ -987,7 +988,7 @@ public static class TokenizationUtils
                     }
 
                     // Handle stride
-                    int windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
+                    var windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
                     if (windowLen > 0)
                     {
                         overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
@@ -1034,11 +1035,11 @@ public static class TokenizationUtils
                 throw new ArgumentException("Sequence and mask must be of the same length.");
         }
 
-        int cutoff = sequence.Count - numTokensToRemove;
-        List<long> overflowTokens = sequence.GetRange(cutoff, numTokensToRemove);
+        var cutoff = sequence.Count - numTokensToRemove;
+        var overflowTokens = sequence.GetRange(cutoff, numTokensToRemove);
         sequence.RemoveRange(cutoff, numTokensToRemove);
 
-        List<Offset?> overflowOffsets = new List<Offset?>();
+        var overflowOffsets = new List<Offset?>();
         if (offsets.Any())
         {
             overflowOffsets = offsets.GetRange(cutoff, offsets.Count - cutoff);
@@ -1051,7 +1052,7 @@ public static class TokenizationUtils
             originalPositions.RemoveRange(cutoff, originalPositions.Count - cutoff);
         }
 
-        int windowLen = Math.Min(sequence.Count, stride);
+        var windowLen = Math.Min(sequence.Count, stride);
         if (windowLen > 0)
         {
             overflowTokens.InsertRange(0, sequence.GetRange(sequence.Count - windowLen, windowLen));
@@ -1072,7 +1073,7 @@ public static class TokenizationUtils
         }
 
         var output = new HashSet<(string, string)>();
-        for (int idx = 0; idx < tokens.Count - 1; idx++)
+        for (var idx = 0; idx < tokens.Count - 1; idx++)
         {
             output.Add((tokens[idx], tokens[idx + 1]));
         }
@@ -1089,7 +1090,7 @@ public static class TokenizationUtils
         }
 
         var bigram = pairs
-            .OrderBy(pair => bpeRanks.TryGetValue(pair, out long rank) ? rank : long.MaxValue)
+            .OrderBy(pair => bpeRanks.TryGetValue(pair, out var rank) ? rank : long.MaxValue)
             .FirstOrDefault();
 
         if (!bpeRanks.ContainsKey(bigram))
@@ -1098,11 +1099,11 @@ public static class TokenizationUtils
         }
 
         var tempSubTokens = new List<string>();
-        int i = 0;
+        var i = 0;
 
         while (i < tokens.Count)
         {
-            int j = tokens.FindIndex(i, t => t == bigram.Item1);
+            var j = tokens.FindIndex(i, t => t == bigram.Item1);
             if (j == -1)
             {
                 tempSubTokens.AddRange(tokens.GetRange(i, tokens.Count - i));
@@ -1116,7 +1117,7 @@ public static class TokenizationUtils
             {
                 if (tokens[i + 1] == bigram.Item2)
                 {
-                    string combinedBytes = bigram.Item1 + bigram.Item2;
+                    var combinedBytes = bigram.Item1 + bigram.Item2;
                     tempSubTokens.Add(combinedBytes);
                     i += 2;
                 }
@@ -1154,8 +1155,8 @@ public static class TokenizationUtils
             }
         }
 
-        int length = output.Item1.Count;
-        for (int i = 0; i < length; i++)
+        var length = output.Item1.Count;
+        for (var i = 0; i < length; i++)
         {
             if (i < length - 1)
             {
@@ -1216,11 +1217,11 @@ public static class TokenizationUtils
     public static List<int> BytesOffsets(string text)
     {
         var offsets = new List<int>(text.Length);
-        for (int i = 0; i < text.Length; i++)
+        for (var i = 0; i < text.Length; i++)
         {
             var character = text[i];
-            int charBytes = Char.IsSurrogate(character) ? 4 : 2;
-            for (int j = 0; j < charBytes; j++)
+            var charBytes = Char.IsSurrogate(character) ? 4 : 2;
+            for (var j = 0; j < charBytes; j++)
             {
                 offsets.Add(i);
             }
@@ -1255,12 +1256,12 @@ public static class TokenizationUtils
             referenceOffsets = token.ReferenceOffsets.ToList();
         }
 
-        bool cached = false;
+        var cached = false;
         if (cache.TryGetValue(textToProcess, out var cacheValue))
         {
             var (cachedTokens, charCounts) = cacheValue;
-            int start = 0;
-            for (int idx = 0; idx < cachedTokens.Count; idx++)
+            var start = 0;
+            for (var idx = 0; idx < cachedTokens.Count; idx++)
             {
                 var subToken = cachedTokens[idx];
                 var charCount = charCounts[idx];
@@ -1279,8 +1280,8 @@ public static class TokenizationUtils
         {
             var (bpeOutput, charCounts) = bpeFunction(textToProcess, bpeRanks);
             cache[textToProcess] = (bpeOutput, charCounts);
-            int start = 0;
-            for (int idx = 0; idx < bpeOutput.Count; idx++)
+            var start = 0;
+            for (var idx = 0; idx < bpeOutput.Count; idx++)
             {
                 var subToken = bpeOutput[idx];
                 var charCount = charCounts[idx];
@@ -1316,8 +1317,8 @@ public static class TokenizationUtils
         }
 
         var tokens = new List<Token>();
-        int beginChar = 0;
-        int startByte = 0;
+        var beginChar = 0;
+        var startByte = 0;
 
         // Skip leading whitespace
         foreach (var c in token.Text)

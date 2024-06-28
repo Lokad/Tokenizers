@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using Lokad.Tokenizers.Exceptions;
+using Xunit;
 
 namespace Lokad.Tokenizers.Vocab.Tests;
 
