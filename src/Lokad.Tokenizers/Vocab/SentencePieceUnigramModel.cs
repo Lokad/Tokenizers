@@ -61,7 +61,7 @@ public class SentencePieceModel
         var node = Root;
 
         var runes = word.EnumerateRunes().ToList();
-        for (int i = 0; i < runes.Count; i++)
+        for (var i = 0; i < runes.Count; i++)
         {
             var character = runes[i];
             if (!node.Children.ContainsKey(character))
@@ -125,7 +125,7 @@ public class SentencePieceModel
 
     public List<Node?> DecodeForwardTokenRef(Token token)
     {
-        List<int> charPositions = new List<int>();
+        var charPositions = new List<int>();
 
         var runes = TokenizationUtils.CharIndicesForRunes(token.Text).ToList();
         runes.ForEach((i => charPositions.Add(i.Index)));
@@ -200,20 +200,20 @@ public class SentencePieceModel
 
     public List<Token> ParseNodesToTokens(List<Node> nodes)
     {
-        List<Token> output = new List<Token>(nodes.Count + 1);
-        bool isPrevUnknown = false;
+        var output = new List<Token>(nodes.Count + 1);
+        var isPrevUnknown = false;
 
-        foreach (Node node in nodes)
+        foreach (var node in nodes)
         {
             // Group unknown tokens
             if (isPrevUnknown && (node.Index == 0))
             {
-                Token prevToken = output.Last();
-                StringBuilder text = new StringBuilder(prevToken.Text);
+                var prevToken = output.Last();
+                var text = new StringBuilder(prevToken.Text);
                 text.Append(node.Text);
-                List<uint> referenceOffsets = new List<uint>();
+                var referenceOffsets = new List<uint>();
                 referenceOffsets.AddRange(node.ReferenceOffsets);
-                Token consolidatedUnknown = new Token(text.ToString())
+                var consolidatedUnknown = new Token(text.ToString())
                 {
                     Text = text.ToString(),
                     Offset = new Offset(0, 0),

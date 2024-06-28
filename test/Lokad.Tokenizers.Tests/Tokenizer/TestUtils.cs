@@ -7,16 +7,16 @@ public class TestUtils
     public static string DownloadFileToCache(string url)
     {
         // Get the home directory path
-        string homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
         // Create the cache directory path
-        string cacheDir = Path.Combine(homeDir, ".cache", ".rust_tokenizers");
+        var cacheDir = Path.Combine(homeDir, ".cache", ".rust_tokenizers");
 
         // extract file name from url
-        string fileName = url.Split('/').Last();
+        var fileName = url.Split('/').Last();
 
         // Create the full path to the file
-        string cachedPath = Path.Combine(cacheDir, fileName);
+        var cachedPath = Path.Combine(cacheDir, fileName);
 
         // Create the cache directory if it does not exist
         if (!Directory.Exists(cacheDir))

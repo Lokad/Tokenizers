@@ -14,484 +14,6 @@ using System.Threading.Tasks;
 namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
-/// Truncation strategy variants
-/// Indicates if and how sequence pairs exceeding a given length should be truncated
-/// </summary>
-public enum TruncationStrategy
-{
-    /// <summary>
-    /// Truncate the longest sequence first
-    /// </summary>
-    LongestFirst,
-
-    /// <summary>
-    /// Truncate only the first sequence
-    /// </summary>
-    OnlyFirst,
-
-    /// <summary>
-    /// Truncate only the second sequence
-    /// </summary>
-    OnlySecond,
-
-    /// <summary>
-    /// Do not truncate the sequences
-    /// </summary>
-    DoNotTruncate,
-}
-
-
-/// <summary>
-/// Offset information (in unicode points) to relate a token back to its original input string
-/// </summary>
-public class Offset : IEquatable<Offset>
-{
-    public uint Begin { get; set; }
-    public uint End { get; set; }
-
-    /// <summary>
-    /// Create a new offset from a begin and end positions
-    /// </summary>
-    public Offset(uint begin, uint end)
-    {
-        Begin = begin;
-        End = end;
-    }
-
-    /// <summary>
-    /// Wrap the offset into an option
-    /// </summary>
-    public Offset? IntoOption()
-    {
-        if (End > Begin)
-        {
-            return this;
-        }
-        else
-        {
-            return null;
-        }
-    }
-
-    public override String ToString() => $"({Begin}:{End})";
-
-    public bool Equals(Offset? other)
-    {
-        if (ReferenceEquals(null, other))
-        {
-            return false;
-        }
-
-        if (ReferenceEquals(this, other))
-        {
-            return true;
-        }
-
-        return Begin == other.Begin && End == other.End;
-    }
-
-    public override bool Equals(object? obj)
-    {
-        if (ReferenceEquals(null, obj))
-        {
-            return false;
-        }
-
-        if (ReferenceEquals(this, obj))
-        {
-            return true;
-        }
-
-        if (obj.GetType() != this.GetType())
-        {
-            return false;
-        }
-
-        return Equals((Offset)obj);
-    }
-
-    public override int GetHashCode()
-    {
-        unchecked
-        {
-            return ((int)Begin * 397) ^ (int)End;
-        }
-    }
-
-    public static bool operator ==(Offset? left, Offset? right)
-    {
-        return Equals(left, right);
-    }
-
-    public static bool operator !=(Offset? left, Offset? right)
-    {
-        return !Equals(left, right);
-    }
-}
-
-/// <summary>
-/// Type indication for tokens (e.g. special token, white space, unknown...)
-/// </summary>
-public enum Mask
-{
-    /// <summary>
-    /// The token has no particular mask. This is the default situation. It may indicate that further processing can be done on a token.
-    /// </summary>
-    None,
-
-    /// <summary>
-    /// The token represents a whitespace (in any shape or form)
-    /// </summary>
-    Whitespace,
-
-    /// <summary>
-    /// The token represents punctuation (in any shape or form)
-    /// </summary>
-    Punctuation,
-
-    /// <summary>
-    /// The token represents a single Chinese/Japanese/Korean character (including kana and hangul)
-    /// </summary>
-    CJK,
-
-    /// <summary>
-    /// The token is a special marker (such as a separator marker, a class marker, etc)
-    /// </summary>
-    Special,
-
-    /// <summary>
-    /// The token is the begin in a series of subtokens, the offset refers specifically to the sub-token. Subsequent tokens in this sequence will carry the 'Continuation' mask
-    /// </summary>
-    Begin,
-
-    /// <summary>
-    /// The token is the continuation of the previous token, the offset refers specifically to the sub-token. All but the first sub-token in a sequence carry this mask (the first carries 'Begin'). (this is the reverse of Mask::Unfinished)
-    /// </summary>
-    Continuation,
-
-    /// <summary>
-    /// The token is the start of a token but not finished yet. All but the last sub-token in the a token sequence carry this mask. This is the reverse of Mask::Continuation.
-    /// </summary>
-    Unfinished,
-
-    /// <summary>
-    /// The token is out of vocabulary, it is unknown by the tokenizer and it will decode to unknown. Tokens that can be decoded properly (but may still be out of vocabulary) should not set this.
-    /// </summary>
-    Unknown,
-}
-
-/// <summary>
-/// Token abstraction trait to access token fields, irrespective of their form (reference of owned)
-/// </summary>
-public interface ITokenTrait
-{
-    /// <summary>
-    /// Returns the offset of the token with respect to the original string
-    /// </summary>
-    Offset Offset { get; }
-
-    /// <summary>
-    /// Returns the token mask
-    /// </summary>
-    Mask Mask { get; }
-
-    /// <summary>
-    /// Returns a string representation for the token
-    /// </summary>
-    string AsStr();
-}
-
-/// <summary>
-/// Owned token that references the original text but stores its own string representation.
-/// </summary>
-public class Token : ITokenTrait
-{
-    /// <summary>
-    /// String representation
-    /// </summary>
-    public string Text { get; set; }
-
-    /// <summary>
-    /// Start and end positions of the token with respect to the original text
-    /// </summary>
-    public Offset Offset { get; set; }
-
-    /// <summary>
-    /// Sequence of positions with respect to the original text contained in the token.
-    /// For example, if the token offset is `start: 4, end: 10`, corresponding reference_offsets are `[4, 5, 6, 7, 8, 9]`
-    /// </summary>
-    public IReadOnlyList<uint> ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Mask indicating the type of the token
-    /// </summary>
-    public Mask Mask { get; set; }
-
-    /// <summary>
-    /// Creates a new owned token from a `String`.
-    /// </summary>
-    /// <param name="text">text reference</param>
-    public Token(string text)
-    {
-        Text = text;
-        uint text_size = (uint)text.Length;
-        Offset = new Offset(0, text_size);
-        ReferenceOffsets = Enumerable.Range(0, (int)text_size).Select(i => (uint)i).ToList();
-        Mask = Mask.None;
-    }
-
-    /// <summary>
-    /// Creates a new token from a text and list of offsets.
-    /// </summary>
-    /// <param name="text">text reference</param>
-    /// <param name="offsets">reference positions with respect to the original text</param>
-    public Token(string text, uint[] offsets)
-    {
-        Text = text;
-        Offset = new Offset(0, (uint)offsets.Length);
-        ReferenceOffsets = offsets;
-        Mask = Mask.None;
-    }
-
-    public Token(string text, Offset offset, IReadOnlyList<uint> referenceOffsets, Mask mask)
-    {
-        Text = text;
-        Offset = offset;
-        ReferenceOffsets = referenceOffsets;
-        Mask = mask;
-    }
-
-    public string AsStr()
-    {
-        return Text;
-    }
-
-    public static Token From(string text)
-    {
-        return new Token(text);
-    }
-
-    public Token Clone()
-    {
-        return new Token(Text, Offset, new List<uint>(ReferenceOffsets), Mask);
-    }
-}
-
-
-/// <summary>
-/// Tokenized Input, ready for processing in language models
-/// This represents the final output of the encoding process (tokenized sentence with encoded values)
-/// </summary>
-public class TokenizedInput
-{
-    /// <summary>
-    /// Vector of token IDs
-    /// </summary>
-    public List<long> TokenIds { get; set; }
-
-    /// <summary>
-    /// Vector segments ids (for example for BERT segments are separated with a [SEP] marker, each incrementing the segment ID).
-    /// This vector has the same length as token_ids.
-    /// </summary>
-    public List<byte> SegmentIds { get; set; }
-
-    /// <summary>
-    /// Flags tokens as special tokens (1) or not (0). This vector has the same length as token_ids.
-    /// </summary>
-    public List<byte> SpecialTokensMask { get; set; }
-
-    /// <summary>
-    /// Vector containing overflowing tokens, populated following a truncation step
-    /// </summary>
-    public List<long> OverflowingTokens { get; set; }
-
-    /// <summary>
-    /// Number of overflowing tokens following a truncation step. this equals the length `overflowing_tokens`
-    /// </summary>
-    public int NumTruncatedTokens { get; set; }
-
-    /// <summary>
-    /// Offset information (as start and end positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<Offset?> TokenOffsets { get; set; }
-
-    /// <summary>
-    /// Offset information (as a sequence of positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<List<uint>> ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Masks tokens providing information on the type of tokens. This vector has the same length as token_ids.
-    /// </summary>
-    public List<Mask> Mask { get; set; }
-}
-
-/// <summary>
-/// Encoded input with special tokens
-/// Intermediate tokenization steps before truncation to a maximum length, after encoding and addition of special tokens
-/// </summary>
-public class TokenIdsWithSpecialTokens
-{
-    /// <summary>
-    /// Vector of token IDs
-    /// </summary>
-    public List<long> TokenIds { get; set; }
-
-    /// <summary>
-    /// Vector segments ids (for example for BERT segments are separated with a [SEP] marker, each incrementing the segment ID).
-    /// This vector has the same length as token_ids.
-    /// </summary>
-    public List<byte> SegmentIds { get; set; }
-
-    /// <summary>
-    /// Flags tokens as special tokens (1) or not (0). This vector has the same length as token_ids.
-    /// </summary>
-    public List<byte> SpecialTokensMask { get; set; }
-
-    /// <summary>
-    /// Offset information (as start and end positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<Offset?> TokenOffsets { get; set; }
-
-    /// <summary>
-    /// Offset information (as a sequence of positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<List<uint>> ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Masks tokens providing information on the type of tokens. This vector has the same length as token_ids.
-    /// </summary>
-    public List<Mask> Mask { get; set; }
-}
-
-/// <summary>
-/// Tokenized sequence
-/// Intermediate tokenization steps before encoding, addition of special tokens and truncation
-/// </summary>
-public class TokensWithOffsets
-{
-    /// <summary>
-    /// Vector of token strings
-    /// </summary>
-    public List<string> Tokens { get; set; }
-
-    /// <summary>
-    /// Offset information (as start and end positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<Offset?> Offsets { get; set; }
-
-    /// <summary>
-    /// Offset information (as a sequence of positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<IReadOnlyList<uint>> ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Masks tokens providing information on the type of tokens. This vector has the same length as token_ids.
-    /// </summary>
-    public List<Mask> Masks { get; set; }
-}
-
-/// <summary>
-/// Encoded sequence
-/// Intermediate tokenization steps before addition of special tokens, after encoding
-/// </summary>
-public class TokenIdsWithOffsets
-{
-    /// <summary>
-    /// Vector of token IDs
-    /// </summary>
-    public List<long> Ids { get; set; }
-
-    /// <summary>
-    /// Offset information (as start and end positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<Offset?> Offsets { get; set; }
-
-    /// <summary>
-    /// Offset information (as a sequence of positions) in relation to the original text. Tokens that can not be related to the
-    /// original source are registered as None.
-    /// </summary>
-    public List<List<uint>> ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Masks tokens providing information on the type of tokens. This vector has the same length as token_ids.
-    /// </summary>
-    public List<Mask> Masks { get; set; }
-}
-
-/// <summary>
-/// Base trait for tokenizers
-/// </summary>
-public interface ITokenizer<T> where T : IVocab
-{
-    /// <summary>
-    /// Returns a reference to the tokenizer vocabulary
-    /// </summary>
-    T Vocab { get; }
-
-    /// <summary>
-    /// Tokenize a string, returns a vector of tokens as strings.
-    /// Use `TokenizeWithOffsets` or `TokenizeToTokens` to return offset information.
-    /// </summary>
-    /// <param name="text">text (string-like) to tokenize</param>
-    /// <returns>`List<string>` containing the tokens string representation</returns>
-    List<string> Tokenize(string text);
-
-    /// <summary>
-    /// Tokenize a string, returning tokens with offset information
-    /// </summary>
-    /// <param name="text">text (string-like) to tokenize</param>
-    /// <returns>`TokensWithOffsets` with the tokens and their offset information</returns>
-    TokensWithOffsets TokenizeWithOffsets(string text);
-
-    /// <summary>
-    /// Tokenize a TokenRef, returning a sequence of tokens
-    /// </summary>
-    /// <param name="initialToken">TokenRef to tokenize (this is especially useful for nested tokenization, where a tokenizer is called on the ouput of a pre-tokenizer, such as BERT).</param>
-    /// <returns>`List<Token>` tokenization of the original `TokenRef`</returns>
-    List<Token> TokenizeToTokens(Token initialToken);
-
-    /// <summary>
-    /// Convert a slice of string-like to a vector ot token indices
-    /// </summary>
-    /// <param name="tokens">list of token string-like to convert to ids</param>
-    /// <returns>`List<long>` with the token indices</returns>
-    List<long> ConvertTokensToIds(List<string> tokens);
-
-    /// <summary>
-    /// Converts a sequence of ids (integer) into a string, using the tokenizer and vocabulary
-    /// with options to remove special tokens and clean up tokenization spaces.
-    /// </summary>
-    /// <param name="tokenIds">list of tokenized input ids. Can be obtained using the `Encode` or `EncodePlus` methods.</param>
-    /// <param name="skipSpecialTokens">if set to True, will replace special tokens.</param>
-    /// <param name="cleanUpTokenizationSpaces">if set to True, will clean up the tokenization spaces.</param>
-    /// <returns>`string`: decoded sentence</returns>
-    string Decode(List<long> tokenIds, bool skipSpecialTokens, bool cleanUpTokenizationSpaces);
-
-    /// <summary>
-    /// Converts a sequence of strings into a single string. This will clean-up artifacts from tokenization
-    /// (for example `sub ##word`) and generate a single output string
-    /// </summary>
-    /// <param name="tokens">list of tokens to concatenate.</param>
-    /// <returns>`string`: concatenated sentence string</returns>
-    string ConvertTokensToString(List<string> tokens);
-
-    /// <summary>
-    /// Cleans-up tokenization artifacts (for example whitespace before punctuation)
-    /// </summary>
-    /// <param name="inputString">input string to clean up</param>
-    /// <returns>`string`: clean-up string</returns>
-    string CleanUpTokenization(string inputString);
-}
-
-/// <summary>
 /// Base tokenizer performing:
 /// - whitespace tokenization
 /// - splitting on special characters
@@ -502,9 +24,9 @@ public interface ITokenizer<T> where T : IVocab
 /// </summary>
 public class BaseTokenizer<T> where T : IVocab
 {
-    private T _vocab;
-    private bool _lowerCase;
-    private bool _stripAccents;
+    private readonly T _vocab;
+    private readonly bool _lowerCase;
+    private readonly bool _stripAccents;
 
     /// <summary>
     /// Create a new instance of a `BaseTokenizer`
@@ -671,12 +193,12 @@ public class BaseTokenizer<T> where T : IVocab
     public void DecomposeNfkc(Token token)
     {
         // Perform NFKC normalization on the token text
-        string decomposedText = token.Text.Normalize(NormalizationForm.FormKC);
+        var decomposedText = token.Text.Normalize(NormalizationForm.FormKC);
 
         // Calculate the new reference offsets
-        List<uint> newReferenceOffsets = new List<uint>();
+        var newReferenceOffsets = new List<uint>();
         uint currentOffset = 0;
-        for (int i = 0; i < decomposedText.Length; i++)
+        for (var i = 0; i < decomposedText.Length; i++)
         {
             // Assuming the original text was decomposed into single characters
             // Adjust the offset accordingly
@@ -863,10 +385,10 @@ public class BaseTokenizer<T> where T : IVocab
 
     public static List<Token> SplitOnSubstr(Token token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
     {
-        List<Token> tokens = new List<Token>();
+        var tokens = new List<Token>();
         uint charBegin = 0;
-        int bytesBegin = 0;
-        int charCount = 0;
+        var bytesBegin = 0;
+        var charCount = 0;
 
         if (token.Mask == Mask.None)
         {
@@ -875,14 +397,14 @@ public class BaseTokenizer<T> where T : IVocab
             foreach (var (charIdx, (bytesIdx, _)) in itr)
             {
                 charCount++;
-                (int matchedBytes, int matchedChars, Mask setMask) = testSubstr(TokenizationUtils.SubstringRunes(token.Text, bytesIdx));
+                (var matchedBytes, var matchedChars, var setMask) = testSubstr(TokenizationUtils.SubstringRunes(token.Text, bytesIdx));
 
                 if (matchedChars > 0)
                 {
                     if (charBegin < charIdx)
                     {
                         // Add previous token
-                        string trimmedText = TokenizationUtils.SubstringRunes(token.Text, bytesBegin, bytesIdx - bytesBegin).TrimEnd();
+                        var trimmedText = TokenizationUtils.SubstringRunes(token.Text, bytesBegin, bytesIdx - bytesBegin).TrimEnd();
                         if (trimmedText.EnumerateRunes().Count() > 0)
                         {
                             tokens.Add(new Token(trimmedText)
@@ -915,8 +437,8 @@ public class BaseTokenizer<T> where T : IVocab
         if (bytesBegin < utf8BytesCount)
         {
             // Add last buffered token if there is anything left
-            int bytesIdx = utf8BytesCount;
-            string text = TokenizationUtils.SubstringRunes(token.Text, bytesBegin, bytesBegin + (bytesIdx - bytesBegin));
+            var bytesIdx = utf8BytesCount;
+            var text = TokenizationUtils.SubstringRunes(token.Text, bytesBegin, bytesBegin + (bytesIdx - bytesBegin));
             if (charCount == 0)
             {
                 charCount = token.Text.EnumerateRunes().Count();
@@ -942,7 +464,7 @@ public class BaseTokenizer<T> where T : IVocab
         var end = 0;
         while (start < text.Length)
         {
-            char charCurrent = text[start];
+            var charCurrent = text[start];
             if (char.IsPunctuation(charCurrent))
             {
                 var offsets = token.ReferenceOffsets.Skip(start).Take(1).ToArray();
@@ -972,7 +494,7 @@ public class BaseTokenizer<T> where T : IVocab
         var end = 0;
         while (start < text.Length)
         {
-            char charCurrent = text[start];
+            var charCurrent = text[start];
             if (IsCjkChar(charCurrent))
             {
                 var offsets = token.ReferenceOffsets.Skip(start).Take(1).ToArray();
