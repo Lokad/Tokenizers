@@ -33,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Lokad.Tokenizers\Lokad.Tokenizers.csproj" />
+    <ProjectReference Include="..\src\Lokad.Tokenizers.csproj" />
   </ItemGroup>
 
   <ItemGroup>
