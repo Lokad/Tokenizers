@@ -18,6 +18,9 @@ public static class Constants
             '\t', '\n', '\r'
     };
 
+    // constant for \u2581 (lower one eighth block)
+    public const char LowerOneEighthBlock = '\u2581'; // ▁
+
     public static readonly HashSet<uint> PunctuationChars = new HashSet<uint>(new uint[]
     {
             0x21, 0x22, 0x23, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2c, 0x2d, 0x2e, 0x2f, 0x3a,
@@ -627,5 +630,3 @@ public static class Constants
         }
     }
 }
-
-

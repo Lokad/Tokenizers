@@ -79,13 +79,13 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
                 var newText = new StringBuilder();
                 foreach (var c in token.Text.EnumerateRunes())
                 {
-                    newText.Append(TokenizationUtils.IsWhitespace(c) ? new Rune('\u2581') : c.ToString());
+                    newText.Append(TokenizationUtils.IsWhitespace(c) ? new Rune(Constants.LowerOneEighthBlock) : c.ToString());
                 }
                 token.Text = newText.ToString();
 
-                if (!token.Text.StartsWith('\u2581'))
+                if (!token.Text.StartsWith(Constants.LowerOneEighthBlock))
                 {
-                    token.Text = "\u2581" + token.Text;
+                    token.Text = Constants.LowerOneEighthBlock + token.Text;
                     var newReferenceOffsets = new List<uint> { 0 };
                     newReferenceOffsets.AddRange(token.ReferenceOffsets);
                     token.ReferenceOffsets = newReferenceOffsets;
@@ -109,7 +109,7 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
     /// </summary>
     public string ConvertTokensToString(List<string> tokens)
     {
-        return string.Join("", tokens.Select(t => t.Replace("\u2581", " ")));
+        return string.Join("", tokens.Select(t => t.Replace(Constants.LowerOneEighthBlock.ToString(), " ")));
     }
 
     /// <summary>
