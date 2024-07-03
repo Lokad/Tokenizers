@@ -3,12 +3,17 @@ using System.Text;
 using Lokad.Tokenizers.Vocab;
 using System.Globalization;
 using Lokad.Tokenizers.Exceptions;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleToAttribute("Lokad.Tokenizers.Tests")]
 
 namespace Lokad.Tokenizers.Tokenizer;
 
-public static class TokenizationUtils
+internal static class TokenizationUtils
 {
-    // Substring Runes (characters)
+    /// <summary>
+    /// Substring Runes (characters)
+    /// </summary>
     public static string SubstringRunes(string text, int start, int length)
     {
         var sb = new StringBuilder();
@@ -16,6 +21,9 @@ public static class TokenizationUtils
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Substring Runes (characters)
+    /// </summary>
     public static string SubstringRunes(string text, int start)
     {
         var sb = new StringBuilder();
@@ -23,42 +31,57 @@ public static class TokenizationUtils
         return sb.ToString();
     }
 
-    // Get string Runes (characters)
+    /// <summary>
+    /// Get string Runes (characters)
+    /// </summary>
     public static StringRuneEnumerator GetStringRuneEnumerator(string text)
     {
         return text.EnumerateRunes();
     }
 
-    // Get LengthInTextElements
+    /// <summary>
+    /// Get String Info
+    /// </summary>
     public static StringInfo GetStringInfo(string text)
     {
         return new System.Globalization.StringInfo(text);
     }
 
-    // Get LengthInTextElements
+    /// <summary>
+    /// Get Length In Text Elements
+    /// </summary>
     public static int GetLengthInTextElements(string text)
     {
         return GetStringInfo(text).LengthInTextElements;
     }
 
-    // Get UTF 8 Bytes
+    /// <summary>
+    /// Get UTF 8 Bytes
+    /// </summary>
     public static byte[] GetUtf8Bytes(string text)
     {
         return Encoding.UTF8.GetBytes(text);
     }
 
-    // Get UTF 8 Chars
+    /// <summary>
+    /// Get UTF 8 Chars
+    /// </summary>
     public static char[] GetUtf8Chars(byte[] bytes)
     {
         return Encoding.UTF8.GetChars(bytes);
     }
 
-    // Get UTF 8 Bytes Count
+    /// <summary>
+    /// Get UTF 8 Bytes Count
+    /// </summary>
     public static int GetUtf8BytesCount(string text)
     {
         return Encoding.UTF8.GetByteCount(text);
     }
 
+    /// <summary>
+    /// Get UTF 8 Chars with index
+    /// </summary>
     public static IEnumerable<(int Index, char Character)> CharIndices(string str)
     {
         var index = 0;
@@ -69,6 +92,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// Get Text Elements with index
+    /// </summary>
     public static IEnumerable<(int Index, string Character)> CharIndicesForTextElements(string str)
     {
         var index = 0;
@@ -82,6 +108,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// Get Runes with index
+    /// </summary>
     public static IEnumerable<(int Index, Rune Character)> CharIndicesForRunes(string str)
     {
         var front_offset = 0;
@@ -94,6 +123,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// NFKC decomposition
+    /// </summary>
     public static IEnumerable<(Rune Character, int ExtraCharSize)> NFKC(string str)
     {
         var runes = str.EnumerateRunes().ToList();
@@ -103,6 +135,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// Enumerate
+    /// </summary>
     public static IEnumerable<(int Index, T Element)> Enumerate<T>(IEnumerable<T> source)
     {
         var index = 0;
@@ -112,6 +147,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// Substring by byte offset
+    /// </summary>
     public static string SubstringByByteOffset(string s, int start)
     {
         var bytes = Encoding.UTF8.GetBytes(s);
@@ -120,6 +158,9 @@ public static class TokenizationUtils
         return Encoding.UTF8.GetString(substringBytes);
     }
 
+    /// <summary>
+    /// Substring by byte offset
+    /// </summary>
     public static string SubstringByByteOffset(string s, int start, int end)
     {
         var bytes = Encoding.UTF8.GetBytes(s);
@@ -250,6 +291,9 @@ public static class TokenizationUtils
         return SplitOnChar(token, IsCjkChar, true, Mask.CJK);
     }
 
+    /// <summary>
+    /// Is CJK character ?
+    /// </summary>
     private static bool IsCjkChar(char character)
     {
         var u32Char = Convert.ToUInt32(character);
@@ -263,11 +307,17 @@ public static class TokenizationUtils
             || (0x2F800 <= u32Char && u32Char <= 0x2FA1F);
     }
 
+    /// <summary>
+    /// Is Whitespace ?
+    /// </summary>
     public static bool IsWhitespace(char character)
     {
         return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character));
     }
 
+    /// <summary>
+    /// Is Whitespace Rune ?
+    /// </summary>
     public static bool IsWhitespace(Rune character)
     {
         return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character.Value));
@@ -308,6 +358,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// Is Control Rune?
+    /// </summary>
     public static bool IsControl(Rune character, bool strict)
     {
         if (Constants.AdditionalWhitespaceChars.Select(c => new Rune(c)).Contains(character))
@@ -335,6 +388,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// Is Punctuation ?
+    /// </summary>
     public static bool IsPunctuation(char character)
     {
         var u32Char = Convert.ToUInt32(character);
@@ -511,6 +567,8 @@ public static class TokenizationUtils
         return tokens;
     }
 
+    /// <summary>
+    /// Split a token on Regex
     public static List<Token> SplitOnRegexWithLookahead(Token token, Regex patternLookahead, Regex patternTokenization)
     {
         if (token.Mask == Mask.None)
@@ -561,6 +619,9 @@ public static class TokenizationUtils
     }
 
 
+    /// <summary>
+    /// Split a token on Regex
+    /// </summary>
     public static List<Token> SplitOnRegex(Token token, Regex patternTokenization)
     {
         var tokens = new List<Token>();
@@ -588,7 +649,9 @@ public static class TokenizationUtils
         return tokens;
     }
 
-
+    /// <summary>
+    /// Split a token on Regex
+    /// </summary>
     public static List<Token> SplitAtRegex(Token token, Regex patternTokenization)
     {
         var tokens = new List<Token>();
@@ -1016,6 +1079,9 @@ public static class TokenizationUtils
         }
     }
 
+    /// <summary>
+    /// Truncate a sequence pair in place to the maximum length, with a stride.
+    /// </summary>
     public static (List<long>, List<Offset?>) TruncateWithOverflow(
         List<long> sequence,
         List<Offset?> offsets,
@@ -1065,6 +1131,11 @@ public static class TokenizationUtils
         return (overflowTokens, overflowOffsets);
     }
 
+    /// <summary>
+    /// Get pairs of tokens
+    /// </summary>
+    /// <param name="tokens"></param>
+    /// <returns></returns>
     public static HashSet<(string, string)> GetPairs(List<string> tokens)
     {
         if (tokens.Count < 2)
@@ -1081,6 +1152,9 @@ public static class TokenizationUtils
         return output;
     }
 
+    /// <summary>
+    /// Group common pairs
+    /// </summary>
     public static (List<string>, bool) GroupCommonPairs(List<string> tokens, Dictionary<(string, string), long> bpeRanks)
     {
         var pairs = GetPairs(tokens);
