@@ -1,38 +1,7 @@
 ﻿using Lokad.Tokenizers.Tokenizer;
-using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 
 namespace Lokad.Tokenizers.Vocab;
-
-// TODO: Port by ChatGPT https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/vocab/sentence_piece_unigram_model.rs
-
-public class Node
-{
-    public string Text { get; set; }
-    public float Score { get; set; }
-    public long Index { get; set; }
-    public int Start { get; set; }
-    public int End { get; set; }
-    public uint[] ReferenceOffsets { get; set; }
-}
-
-public class TrieNode
-{
-    public string Text { get; set; }
-    public int Len { get; set; }
-    public float Score { get; set; }
-    public long Index { get; set; }
-    public bool End { get; set; }
-    public Dictionary<Rune, TrieNode> Children { get; set; }
-
-    public TrieNode(string text)
-    {
-        Text = text;
-        Len = text.EnumerateRunes().Count();
-        Children = new Dictionary<Rune, TrieNode>();
-    }
-}
 
 public class SentencePieceModel
 {
@@ -138,26 +107,25 @@ public class SentencePieceModel
         for (var charStart = 0; charStart < charPositions.Count - 1; charStart++)
         {
             var prefix = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart]);
-            //token.Text.EnumerateRunes().Skip(charPositions[charStart]).ToList().ForEach(r => prefix.Append(r.ToString()));
             var matches = CommonPrefixSearch(prefix.ToString());
 
             foreach (var node in matches)
             {
                 var localScore = scores[charStart] + node.Score;
-                var charEnd = charStart + node.Len;
+                var charEnd = charStart + node.Length;
 
                 if (localScore > scores[charEnd])
                 {
                     var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charEnd]);
                     results[charEnd] = new Node
-                    {
-                        Text = t,
-                        Score = localScore,
-                        Index = node.Index,
-                        Start = charStart,
-                        End = charEnd,
-                        ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(charEnd - charStart).ToArray()
-                    };
+                    (
+                        text: t,
+                        score: localScore,
+                        index: node.Index,
+                        start: charStart,
+                        end: charEnd,
+                        referenceOffsets: token.ReferenceOffsets.Skip(charStart).Take(charEnd - charStart).ToArray()
+                    );
 
                     scores[charEnd] = localScore;
                 }
@@ -167,14 +135,14 @@ public class SentencePieceModel
             {
                 var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charStart + 1]);
                 results[charStart + 1] = new Node
-                {
-                    Text = t,
-                    Score = float.MinValue,
-                    Index = 0,
-                    Start = charStart,
-                    End = charStart + 1,
-                    ReferenceOffsets = token.ReferenceOffsets.Skip(charStart).Take(1).ToArray()
-                };
+                (
+                    text: t,
+                    score: float.MinValue,
+                    index: 0,
+                    start: charStart,
+                    end: charStart + 1,
+                    referenceOffsets: token.ReferenceOffsets.Skip(charStart).Take(1).ToArray()
+                );
 
                 scores[charStart + 1] = 0f;
             }
