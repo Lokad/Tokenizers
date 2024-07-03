@@ -1,13 +1,9 @@
-﻿// Port notes:
-// - OffsetSize is ported as 'uint'
-// - Token and TokenRef have been merged as 'Token'.
-
-namespace Lokad.Tokenizers.Tokenizer;
+﻿namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
-/// Owned token that references the original text but stores its own string representation.
+/// token that references the original text but stores its own string representation.
 /// </summary>
-public class Token : ITokenTrait
+public class Token : IToken
 {
     /// <summary>
     /// String representation
@@ -64,7 +60,7 @@ public class Token : ITokenTrait
         Mask = mask;
     }
 
-    public string AsStr()
+    public override string ToString()
     {
         return Text;
     }

@@ -236,7 +236,7 @@ public class SentencePieceModel
             isPrevUnknown = node.Index == 0;
         }
 
-        PopulateMasks(output, '\u2581');
+        PopulateMasks(output, Constants.LowerOneEighthBlock);
         return output;
     }
 

@@ -1,8 +1,5 @@
 ﻿using Lokad.Tokenizers.Vocab;
 
-// Port notes:
-// - OffsetSize is ported as 'uint'
-// - Token and TokenRef have been merged as 'Token'.
 
 namespace Lokad.Tokenizers.Tokenizer;
 
