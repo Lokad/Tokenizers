@@ -34,7 +34,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -75,7 +75,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -109,7 +109,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -152,7 +152,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -186,7 +186,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -220,7 +220,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -267,7 +267,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -302,7 +302,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -363,7 +363,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -421,7 +421,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 128, TruncationStrategy.LongestFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 128, TruncationStrategy.LongestFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenOffsets, result.TokenOffsets);
@@ -445,7 +445,7 @@ public class XLMRobertaTokenizerTests
 
         foreach (var (First, Second) in input_texts.Zip(expected_result))
         {
-            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            var result = xlm_roberta_tokenizer.Encode(First, null, 128, TruncationStrategy.LongestFirst, 0);
             // Then
             Assert.Equal(Second.Count, result.TokenIds.Count);
             Assert.Equal(Second, result.TokenIds);
@@ -471,7 +471,7 @@ public class XLMRobertaTokenizerTests
 
         foreach (var (First, Second) in input_texts.Zip(expected_result))
         {
-            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            var result = xlm_roberta_tokenizer.Encode(First, null, 128, TruncationStrategy.LongestFirst, 0);
             // Then
             Assert.Equal(Second.Count, result.TokenIds.Count);
             Assert.Equal(Second, result.TokenIds);
@@ -498,7 +498,7 @@ public class XLMRobertaTokenizerTests
         // When
         foreach (var (First, Second) in input_texts.Zip(expected_result))
         {
-            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            var result = xlm_roberta_tokenizer.Encode(First, null, 128, TruncationStrategy.LongestFirst, 0);
             // Then
             Assert.Equal(Second.Count, result.TokenIds.Count);
             Assert.Equal(Second, result.TokenIds);
@@ -525,7 +525,7 @@ public class XLMRobertaTokenizerTests
         // When
         foreach (var (First, Second) in input_texts.Zip(expected_result))
         {
-            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            var result = xlm_roberta_tokenizer.Encode(First, null, 128, TruncationStrategy.LongestFirst, 0);
             // Then
             Assert.Equal(Second.Count, result.TokenIds.Count);
             Assert.Equal(Second, result.TokenIds);
@@ -552,7 +552,7 @@ public class XLMRobertaTokenizerTests
         // When
         foreach (var (First, Second) in input_texts.Zip(expected_result))
         {
-            var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, First, null, 128, TruncationStrategy.LongestFirst, 0);
+            var result = xlm_roberta_tokenizer.Encode(First, null, 128, TruncationStrategy.LongestFirst, 0);
             // Then
             Assert.Equal(Second.Count, result.TokenIds.Count);
             Assert.Equal(Second, result.TokenIds);
@@ -585,7 +585,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 5, TruncationStrategy.OnlyFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 5, TruncationStrategy.OnlyFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenIds, result.TokenIds);
@@ -615,7 +615,7 @@ public class XLMRobertaTokenizerTests
         };
 
         // When
-        var result = xlm_roberta_tokenizer.Encode(xlm_roberta_tokenizer, original_string, null, 5, TruncationStrategy.OnlyFirst, 0);
+        var result = xlm_roberta_tokenizer.Encode(original_string, null, 5, TruncationStrategy.OnlyFirst, 0);
 
         // Then
         Assert.Equal(expected_result.TokenIds, result.TokenIds);

@@ -1,8 +1,6 @@
 ﻿using Lokad.Tokenizers.Vocab;
 using System.Text;
 
-// TODO: Port of ChatGPT from https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/xlm_roberta_tokenizer.rs
-
 namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
@@ -15,9 +13,9 @@ namespace Lokad.Tokenizers.Tokenizer;
 /// </summary>
 public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 {
-    private SentencePieceModel _model;
-    private XlmRobertaVocab _vocab;
-    private bool _lowerCase;
+    private readonly SentencePieceModel _model;
+    private readonly XlmRobertaVocab _vocab;
+    private readonly bool _lowerCase;
 
     /// <summary>
     /// Create a new instance of a `XLMRobertaTokenizer`
@@ -112,58 +110,5 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
         return string.Join("", tokens.Select(t => t.Replace(Constants.LowerOneEighthBlock.ToString(), " ")));
     }
 
-    /// <summary>
-    /// Builds input with special tokens.
-    /// </summary>
-    public TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
-    {
-        var output = new List<long> { _vocab.TokenToId(_vocab.GetClsValue()) };
-        var tokenSegmentIds = new List<int> { 0 };
-        var specialTokensMask = new List<int> { 1 };
-        var offsets = new List<Offset?> { null };
-        var originalOffsets = new List<List<uint>> { new List<uint>() };
-        var mask = new List<Mask> { Mask.Special };
 
-        output.AddRange(tokens1.Ids);
-        tokenSegmentIds.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
-        specialTokensMask.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
-        offsets.AddRange(tokens1.Offsets);
-        originalOffsets.AddRange(tokens1.ReferenceOffsets);
-        mask.AddRange(tokens1.Masks);
-
-        output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-        tokenSegmentIds.Add(0);
-        specialTokensMask.Add(1);
-        offsets.Add(null);
-        originalOffsets.Add(new List<uint>());
-        mask.Add(Mask.Special);
-
-        if (tokens2 != null)
-        {
-            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-            output.AddRange(tokens2.Ids);
-            tokenSegmentIds.AddRange(Enumerable.Repeat(1, tokens2.Ids.Count + 1));
-            specialTokensMask.AddRange(Enumerable.Repeat(0, tokens2.Ids.Count).Prepend(1));
-            offsets.AddRange(tokens2.Offsets.Prepend(null));
-            originalOffsets.AddRange(tokens2.ReferenceOffsets.Prepend(new List<uint>()));
-            mask.AddRange(tokens2.Masks.Prepend(Mask.Special));
-
-            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-            tokenSegmentIds.Add(1);
-            specialTokensMask.Add(1);
-            offsets.Add(null);
-            originalOffsets.Add(new List<uint>());
-            mask.Add(Mask.Special);
-        }
-
-        return new TokenIdsWithSpecialTokens
-        {
-            TokenIds = output,
-            SegmentIds = tokenSegmentIds.Select(i => (byte)i).ToList(),
-            SpecialTokensMask = specialTokensMask.Select(i => (byte)i).ToList(),
-            TokenOffsets = offsets,
-            ReferenceOffsets = originalOffsets,
-            Mask = mask
-        };
-    }
 }
