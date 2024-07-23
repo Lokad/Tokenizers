@@ -1,8 +1,6 @@
 ﻿using Lokad.Tokenizers.Vocab;
 using System.Text;
 
-// TODO: Port of ChatGPT from https://github.com/guillaume-be/rust-tokenizers/blob/main/main/src/tokenizer/xlm_roberta_tokenizer.rs
-
 namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
@@ -15,9 +13,9 @@ namespace Lokad.Tokenizers.Tokenizer;
 /// </summary>
 public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 {
-    private SentencePieceModel _model;
-    private XlmRobertaVocab _vocab;
-    private bool _lowerCase;
+    private readonly SentencePieceModel _model;
+    private readonly XlmRobertaVocab _vocab;
+    private readonly bool _lowerCase;
 
     /// <summary>
     /// Create a new instance of a `XLMRobertaTokenizer`
@@ -105,17 +103,9 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
     }
 
     /// <summary>
-    /// Converts a list of tokens to a single string.
-    /// </summary>
-    public string ConvertTokensToString(List<string> tokens)
-    {
-        return string.Join("", tokens.Select(t => t.Replace(Constants.LowerOneEighthBlock.ToString(), " ")));
-    }
-
-    /// <summary>
     /// Builds input with special tokens.
     /// </summary>
-    public TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
+    public override TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
     {
         var output = new List<long> { _vocab.TokenToId(_vocab.GetClsValue()) };
         var tokenSegmentIds = new List<int> { 0 };
@@ -166,4 +156,14 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
             Mask = mask
         };
     }
+
+    /// <summary>
+    /// Converts a list of tokens to a single string.
+    /// </summary>
+    public string ConvertTokensToString(List<string> tokens)
+    {
+        return string.Join("", tokens.Select(t => t.Replace(Constants.LowerOneEighthBlock.ToString(), " ")));
+    }
+
+
 }

@@ -22,6 +22,19 @@ public class BaseVocab : IVocab
 
     public string GetUnknownValue() => SpecialTokenMap.UnkToken;
 
+    public string GetBosValue() => SpecialTokenMap.BosToken;
+
+    public string GetEosValue() => SpecialTokenMap.EosToken;
+
+    public string GetPadValue() => SpecialTokenMap.PadToken;
+
+    public string GetSepValue() => SpecialTokenMap.SepToken;
+
+    public string GetClsValue() => SpecialTokenMap.ClsToken;
+
+    public string GetMaskValue() => SpecialTokenMap.MaskToken;
+
+
     public IEnumerable<string> SpecialTokens()
     {
         // [vermorel] Method manually inserted, not sure about the semantic.

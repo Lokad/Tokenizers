@@ -7,10 +7,6 @@ using System.Reflection;
 using static System.Net.Mime.MediaTypeNames;
 using System.Threading.Tasks;
 
-// Port notes:
-// - OffsetSize is ported as 'uint'
-// - Token and TokenRef have been merged as 'Token'.
-
 namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
@@ -79,11 +75,8 @@ public class BaseTokenizer<T> where T : IVocab
     }
 
     /// <summary>
-    /// Tokenize a string, returns a vector of tokens as strings.
-    /// Use `TokenizeWithOffsets` or `TokenizeToTokens` to return offset information.
+    /// Tokenize a string, returns a list of tokens as strings.
     /// </summary>
-    /// <param name="text">text (string-like) to tokenize</param>
-    /// <returns>`List<string>` containing the tokens string representation</returns>
     public List<string> Tokenize(string text)
     {
         return TokenizeWithOffsets(text).Tokens;
@@ -92,8 +85,6 @@ public class BaseTokenizer<T> where T : IVocab
     /// <summary>
     /// Tokenize a string, returning tokens with offset information
     /// </summary>
-    /// <param name="text">text (string-like) to tokenize</param>
-    /// <returns>`TokensWithOffsets` with the tokens and their offset information</returns>
     public TokensWithOffsets TokenizeWithOffsets(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -189,7 +180,6 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-
     public void DecomposeNfkc(Token token)
     {
         // Perform NFKC normalization on the token text
@@ -223,7 +213,7 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens.Select(token => _vocab.TokenToId(token)).ToList();
     }
 
-    public TokenizedInput Encode(XLMRobertaTokenizer tokenizer, String text1, String? text2, int maxLen, TruncationStrategy truncationStrategy,
+    public TokenizedInput Encode(String text1, String? text2, int maxLen, TruncationStrategy truncationStrategy,
         int stride)
     {
         var tokens = TokenizeWithOffsets(text1);
@@ -254,7 +244,7 @@ public class BaseTokenizer<T> where T : IVocab
             };
         }
 
-        var additional_tokens = tokenizer.BuildInputWithSpecialTokens(
+        var additional_tokens = BuildInputWithSpecialTokens(
             tokens1: new TokenIdsWithOffsets
             {
                 Ids = new List<long>(),
@@ -281,7 +271,7 @@ public class BaseTokenizer<T> where T : IVocab
         token_ids_with_offsets_1 = token_ids_with_offsets_1_x;
 
         var merged_tokenized_input =
-            tokenizer.BuildInputWithSpecialTokens(token_ids_with_offsets_1, token_ids_with_offsets_2);
+            BuildInputWithSpecialTokens(token_ids_with_offsets_1, token_ids_with_offsets_2);
 
         return new TokenizedInput()
         {
@@ -293,6 +283,39 @@ public class BaseTokenizer<T> where T : IVocab
             TokenOffsets = merged_tokenized_input.TokenOffsets,
             ReferenceOffsets = merged_tokenized_input.ReferenceOffsets,
             Mask = merged_tokenized_input.Mask
+        };
+    }
+
+    /// <summary>
+    /// Builds input with special tokens.
+    /// </summary>
+    public virtual TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
+    {
+        var tokenSegmentIds = new List<byte>(new byte[tokens1.Ids.Count]);
+        var specialTokensMask = new List<byte>(new byte[tokens1.Ids.Count]);
+
+        if (tokens2 != null)
+        {
+            var tokensIdsWithOffsets2Value = tokens2;
+            var length = tokensIdsWithOffsets2Value.Ids.Count;
+
+            tokenSegmentIds.AddRange(Enumerable.Repeat((byte)1, length));
+            specialTokensMask.AddRange(Enumerable.Repeat((byte)0, length));
+
+            tokens1.Ids.AddRange(tokensIdsWithOffsets2Value.Ids);
+            tokens1.Offsets.AddRange(tokensIdsWithOffsets2Value.Offsets);
+            tokens1.ReferenceOffsets.AddRange(tokensIdsWithOffsets2Value.ReferenceOffsets);
+            tokens1.Masks.AddRange(tokensIdsWithOffsets2Value.Masks);
+        }
+
+        return new TokenIdsWithSpecialTokens
+        {
+            TokenIds = tokens1.Ids,
+            SegmentIds = tokenSegmentIds,
+            SpecialTokensMask = specialTokensMask,
+            TokenOffsets = tokens1.Offsets,
+            ReferenceOffsets = tokens1.ReferenceOffsets,
+            Mask = tokens1.Masks
         };
     }
 
@@ -324,45 +347,14 @@ public class BaseTokenizer<T> where T : IVocab
     /// </summary>
     /// <param name="tokens">list of tokens to concatenate.</param>
     /// <returns>`string`: concatenated sentence string</returns>
-    public string ConvertTokensToString(List<string> tokens)
+    private string ConvertTokensToString(List<string> tokens)
     {
         return string.Join(" ", tokens);
     }
 
-    /// <summary>
-    /// Cleans-up tokenization artifacts (for example whitespace before punctuation)
-    /// </summary>
-    /// <param name="inputString">input string to clean up</param>
-    /// <returns>`string`: clean-up string</returns>
-    public string CleanUpTokenization(string inputString)
-    {
-        return inputString
-            .Replace(" .", ".")
-            .Replace(" !", "!")
-            .Replace(" ?", "?")
-            .Replace(" ,", ",")
-            .Replace(" ' ", "'")
-            .Replace(" n't", "n't")
-            .Replace(" 'm", "'m")
-            .Replace(" do not", " don't")
-            .Replace(" 's", "'s")
-            .Replace(" 've", "'ve")
-            .Replace(" 're", "'re");
-    }
 
-    private static List<Token> WhitespaceTokenize(Token initialToken)
-    {
-        var parts = initialToken.Text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-        var tokens = new List<Token>();
-        foreach (var part in parts)
-        {
-            var offsets = initialToken.ReferenceOffsets.SkipWhile((offset, index) => char.IsWhiteSpace(initialToken.Text[index])).Take(part.Length).ToArray();
-            tokens.Add(new Token(part, offsets));
-        }
-        return tokens;
-    }
-
-    protected static List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
+    // Protected methods
+    protected List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
     {
 
         Func<string, (int, int, Mask)> testSubstr = (s) =>
@@ -382,8 +374,43 @@ public class BaseTokenizer<T> where T : IVocab
         };
         return SplitOnSubstr(token, testSubstr, true);
     }
+    
+    // Private methods
+    
+    /// <summary>
+    /// Cleans-up tokenization artifacts (for example whitespace before punctuation)
+    /// </summary>
+    /// <param name="inputString">input string to clean up</param>
+    /// <returns>`string`: clean-up string</returns>
+    private string CleanUpTokenization(string inputString)
+    {
+        return inputString
+            .Replace(" .", ".")
+            .Replace(" !", "!")
+            .Replace(" ?", "?")
+            .Replace(" ,", ",")
+            .Replace(" ' ", "'")
+            .Replace(" n't", "n't")
+            .Replace(" 'm", "'m")
+            .Replace(" do not", " don't")
+            .Replace(" 's", "'s")
+            .Replace(" 've", "'ve")
+            .Replace(" 're", "'re");
+    }
 
-    public static List<Token> SplitOnSubstr(Token token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
+    private List<Token> WhitespaceTokenize(Token initialToken)
+    {
+        var parts = initialToken.Text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        var tokens = new List<Token>();
+        foreach (var part in parts)
+        {
+            var offsets = initialToken.ReferenceOffsets.SkipWhile((offset, index) => char.IsWhiteSpace(initialToken.Text[index])).Take(part.Length).ToArray();
+            tokens.Add(new Token(part, offsets));
+        }
+        return tokens;
+    }
+
+    private List<Token> SplitOnSubstr(Token token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
     {
         var tokens = new List<Token>();
         uint charBegin = 0;
@@ -454,9 +481,7 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-
-
-    private static List<Token> SplitOnPunct(Token token)
+    private List<Token> SplitOnPunct(Token token)
     {
         var tokens = new List<Token>();
         var text = token.Text;
@@ -486,7 +511,7 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-    private static List<Token> TokenizeCjkChars(Token token)
+    private List<Token> TokenizeCjkChars(Token token)
     {
         var tokens = new List<Token>();
         var text = token.Text;
@@ -516,13 +541,13 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-    private static bool IsCjkChar(char c)
+    private bool IsCjkChar(char c)
     {
         var unicodeBlock = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
         return unicodeBlock == System.Globalization.UnicodeCategory.OtherLetter;
     }
 
-    private static void CleanText(Token token, bool removeControlCharacters)
+    private void CleanText(Token token, bool removeControlCharacters)
     {
         if (removeControlCharacters)
         {
@@ -530,18 +555,18 @@ public class BaseTokenizer<T> where T : IVocab
         }
         token.Text = token.Text.Replace("``", "\"").Replace("''", "\"");
     }
-
-    private static void Lowercase(Token token)
+    
+    private void Lowercase(Token token)
     {
         token.Text = token.Text.ToLowerInvariant();
     }
 
-    private static void StripAccents(Token token)
+    private void StripAccents(Token token)
     {
         token.Text = RemoveDiacritics(token.Text);
     }
 
-    private static string RemoveDiacritics(string text)
+    private string RemoveDiacritics(string text)
     {
         var normalizedString = text.Normalize(System.Text.NormalizationForm.FormD);
         var stringBuilder = new System.Text.StringBuilder();
