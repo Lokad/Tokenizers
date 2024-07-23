@@ -103,6 +103,61 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
     }
 
     /// <summary>
+    /// Builds input with special tokens.
+    /// </summary>
+    public override TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
+    {
+        var output = new List<long> { _vocab.TokenToId(_vocab.GetClsValue()) };
+        var tokenSegmentIds = new List<int> { 0 };
+        var specialTokensMask = new List<int> { 1 };
+        var offsets = new List<Offset?> { null };
+        var originalOffsets = new List<List<uint>> { new List<uint>() };
+        var mask = new List<Mask> { Mask.Special };
+
+        output.AddRange(tokens1.Ids);
+        tokenSegmentIds.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
+        specialTokensMask.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
+        offsets.AddRange(tokens1.Offsets);
+        originalOffsets.AddRange(tokens1.ReferenceOffsets);
+        mask.AddRange(tokens1.Masks);
+
+        output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
+        tokenSegmentIds.Add(0);
+        specialTokensMask.Add(1);
+        offsets.Add(null);
+        originalOffsets.Add(new List<uint>());
+        mask.Add(Mask.Special);
+
+        if (tokens2 != null)
+        {
+            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
+            output.AddRange(tokens2.Ids);
+            tokenSegmentIds.AddRange(Enumerable.Repeat(1, tokens2.Ids.Count + 1));
+            specialTokensMask.AddRange(Enumerable.Repeat(0, tokens2.Ids.Count).Prepend(1));
+            offsets.AddRange(tokens2.Offsets.Prepend(null));
+            originalOffsets.AddRange(tokens2.ReferenceOffsets.Prepend(new List<uint>()));
+            mask.AddRange(tokens2.Masks.Prepend(Mask.Special));
+
+            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
+            tokenSegmentIds.Add(1);
+            specialTokensMask.Add(1);
+            offsets.Add(null);
+            originalOffsets.Add(new List<uint>());
+            mask.Add(Mask.Special);
+        }
+
+        return new TokenIdsWithSpecialTokens
+        {
+            TokenIds = output,
+            SegmentIds = tokenSegmentIds.Select(i => (byte)i).ToList(),
+            SpecialTokensMask = specialTokensMask.Select(i => (byte)i).ToList(),
+            TokenOffsets = offsets,
+            ReferenceOffsets = originalOffsets,
+            Mask = mask
+        };
+    }
+
+    /// <summary>
     /// Converts a list of tokens to a single string.
     /// </summary>
     public string ConvertTokensToString(List<string> tokens)

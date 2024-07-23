@@ -289,55 +289,33 @@ public class BaseTokenizer<T> where T : IVocab
     /// <summary>
     /// Builds input with special tokens.
     /// </summary>
-    public TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
+    public virtual TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
     {
-        var output = new List<long> { _vocab.TokenToId(_vocab.GetClsValue()) };
-        var tokenSegmentIds = new List<int> { 0 };
-        var specialTokensMask = new List<int> { 1 };
-        var offsets = new List<Offset?> { null };
-        var originalOffsets = new List<List<uint>> { new List<uint>() };
-        var mask = new List<Mask> { Mask.Special };
-
-        output.AddRange(tokens1.Ids);
-        tokenSegmentIds.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
-        specialTokensMask.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
-        offsets.AddRange(tokens1.Offsets);
-        originalOffsets.AddRange(tokens1.ReferenceOffsets);
-        mask.AddRange(tokens1.Masks);
-
-        output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-        tokenSegmentIds.Add(0);
-        specialTokensMask.Add(1);
-        offsets.Add(null);
-        originalOffsets.Add(new List<uint>());
-        mask.Add(Mask.Special);
+        var tokenSegmentIds = new List<byte>(new byte[tokens1.Ids.Count]);
+        var specialTokensMask = new List<byte>(new byte[tokens1.Ids.Count]);
 
         if (tokens2 != null)
         {
-            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-            output.AddRange(tokens2.Ids);
-            tokenSegmentIds.AddRange(Enumerable.Repeat(1, tokens2.Ids.Count + 1));
-            specialTokensMask.AddRange(Enumerable.Repeat(0, tokens2.Ids.Count).Prepend(1));
-            offsets.AddRange(tokens2.Offsets.Prepend(null));
-            originalOffsets.AddRange(tokens2.ReferenceOffsets.Prepend(new List<uint>()));
-            mask.AddRange(tokens2.Masks.Prepend(Mask.Special));
+            var tokensIdsWithOffsets2Value = tokens2;
+            var length = tokensIdsWithOffsets2Value.Ids.Count;
 
-            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-            tokenSegmentIds.Add(1);
-            specialTokensMask.Add(1);
-            offsets.Add(null);
-            originalOffsets.Add(new List<uint>());
-            mask.Add(Mask.Special);
+            tokenSegmentIds.AddRange(Enumerable.Repeat((byte)1, length));
+            specialTokensMask.AddRange(Enumerable.Repeat((byte)0, length));
+
+            tokens1.Ids.AddRange(tokensIdsWithOffsets2Value.Ids);
+            tokens1.Offsets.AddRange(tokensIdsWithOffsets2Value.Offsets);
+            tokens1.ReferenceOffsets.AddRange(tokensIdsWithOffsets2Value.ReferenceOffsets);
+            tokens1.Masks.AddRange(tokensIdsWithOffsets2Value.Masks);
         }
 
         return new TokenIdsWithSpecialTokens
         {
-            TokenIds = output,
-            SegmentIds = tokenSegmentIds.Select(i => (byte)i).ToList(),
-            SpecialTokensMask = specialTokensMask.Select(i => (byte)i).ToList(),
-            TokenOffsets = offsets,
-            ReferenceOffsets = originalOffsets,
-            Mask = mask
+            TokenIds = tokens1.Ids,
+            SegmentIds = tokenSegmentIds,
+            SpecialTokensMask = specialTokensMask,
+            TokenOffsets = tokens1.Offsets,
+            ReferenceOffsets = tokens1.ReferenceOffsets,
+            Mask = tokens1.Masks
         };
     }
 
