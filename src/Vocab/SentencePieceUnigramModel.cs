@@ -3,15 +3,29 @@ using System.Text;
 
 namespace Lokad.Tokenizers.Vocab;
 
+/// <summary>
+/// Represents a SentencePiece model for tokenization.
+/// </summary>
 public class SentencePieceModel
 {
+    /// <summary>
+    /// Gets or sets the root node of the trie.
+    /// </summary>
     public TrieNode Root { get; set; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SentencePieceModel"/> class.
+    /// </summary>
     public SentencePieceModel()
     {
         Root = new TrieNode("");
     }
 
+    /// <summary>
+    /// Creates a <see cref="SentencePieceModel"/> from a file.
+    /// </summary>
+    /// <param name="path">The path to the file.</param>
+    /// <returns>A <see cref="SentencePieceModel"/> instance.</returns>
     public static SentencePieceModel FromFile(string path)
     {
         var model = new SentencePieceModel();
@@ -25,6 +39,12 @@ public class SentencePieceModel
         return model;
     }
 
+    /// <summary>
+    /// Inserts a word into the trie.
+    /// </summary>
+    /// <param name="word">The word to insert.</param>
+    /// <param name="score">The score of the word.</param>
+    /// <param name="index">The index of the word.</param>
     private void Insert(string word, float score, int index)
     {
         var node = Root;
@@ -48,9 +68,13 @@ public class SentencePieceModel
                 node.Index = index;
             }
         }
-
     }
 
+    /// <summary>
+    /// Searches for common prefixes in the trie.
+    /// </summary>
+    /// <param name="text">The text to search for.</param>
+    /// <returns>A list of <see cref="TrieNode"/> representing the common prefixes.</returns>
     public List<TrieNode> CommonPrefixSearch(string text)
     {
         var results = new List<TrieNode>();
@@ -92,6 +116,11 @@ public class SentencePieceModel
         return results;
     }
 
+    /// <summary>
+    /// Decodes a token forward to find references.
+    /// </summary>
+    /// <param name="token">The token to decode.</param>
+    /// <returns>A list of <see cref="Node"/> representing the decoded references.</returns>
     public List<Node?> DecodeForwardTokenRef(Token token)
     {
         var charPositions = new List<int>();
@@ -150,6 +179,12 @@ public class SentencePieceModel
 
         return results.ToList();
     }
+
+    /// <summary>
+    /// Decodes nodes backward to find the best sequence.
+    /// </summary>
+    /// <param name="nodes">The nodes to decode.</param>
+    /// <returns>A list of <see cref="Node"/> representing the best sequence.</returns>
     public List<Node> DecodeBackward(Node?[] nodes)
     {
         var bestSequence = new List<Node>();
@@ -166,6 +201,11 @@ public class SentencePieceModel
         return bestSequence;
     }
 
+    /// <summary>
+    /// Parses nodes to tokens.
+    /// </summary>
+    /// <param name="nodes">The nodes to parse.</param>
+    /// <returns>A list of <see cref="Token"/> representing the parsed tokens.</returns>
     public List<Token> ParseNodesToTokens(List<Node> nodes)
     {
         var output = new List<Token>(nodes.Count + 1);
@@ -208,6 +248,11 @@ public class SentencePieceModel
         return output;
     }
 
+    /// <summary>
+    /// Populates masks for tokens.
+    /// </summary>
+    /// <param name="tokens">The tokens to populate masks for.</param>
+    /// <param name="whitespaceToken">The whitespace token.</param>
     public void PopulateMasks(List<Token> tokens, char whitespaceToken)
     {
         var previousMask = Mask.None;

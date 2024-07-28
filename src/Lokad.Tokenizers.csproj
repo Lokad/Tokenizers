@@ -4,7 +4,34 @@
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>Lokad Tokenizers</Title>
+    <Authors>Lokad</Authors>
+    <Company>Lokad</Company>
+    <Description>Lokad.Tokenizers is a C#/.NET library that provides tokenization functionalities similar to the `rust-tokenizers` library. It is designed to work with various tokenization models, including the `XLMRobertaTokenizer` model used for `multilingual-e5-large` (text embedding).</Description>
+    <Copyright>Copyright © Lokad 2020 - 2024</Copyright>
+    <PackageProjectUrl>https://github.com/Lokad/Tokenizers</PackageProjectUrl>
+    <PackageIcon>lokad.png</PackageIcon>
+    <PackageReadmeFile>ReadMe.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/Lokad/Tokenizers</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\LICENSE.txt">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\lokad.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\ReadMe.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.25.3" />
