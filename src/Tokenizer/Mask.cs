@@ -1,8 +1,4 @@
-﻿// Port notes:
-// - OffsetSize is ported as 'uint'
-// - Token and TokenRef have been merged as 'Token'.
-
-namespace Lokad.Tokenizers.Tokenizer;
+﻿namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
 /// Type indication for tokens (e.g. special token, white space, unknown...)

@@ -1,5 +1,8 @@
 ﻿namespace Lokad.Tokenizers.Vocab;
 
+/// <summary>
+/// Represents the vocabulary for XLM-Roberta tokenization.
+/// </summary>
 public class XlmRobertaVocab : BaseVocab
 {
     private const string DefaultUnkToken = "<unk>";
@@ -10,6 +13,11 @@ public class XlmRobertaVocab : BaseVocab
     private const string DefaultEosToken = "</s>";
     private const string DefaultMaskToken = "<mask>";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="XlmRobertaVocab"/> class.
+    /// </summary>
+    /// <param name="values">The dictionary of token values and their corresponding IDs.</param>
+    /// <param name="specialTokenMap">The map of special tokens.</param>
     public XlmRobertaVocab(Dictionary<string, long> values, SpecialTokenMap specialTokenMap)
         : base(values, specialTokenMap)
     {
@@ -18,6 +26,7 @@ public class XlmRobertaVocab : BaseVocab
     /// <summary>
     /// Gets the PAD token value.
     /// </summary>
+    /// <returns>The PAD token value.</returns>
     public string GetPadValue()
     {
         return SpecialTokenMap.PadToken ?? DefaultPadToken;
@@ -26,6 +35,7 @@ public class XlmRobertaVocab : BaseVocab
     /// <summary>
     /// Gets the BOS (Beginning of Sentence) token value.
     /// </summary>
+    /// <returns>The BOS token value.</returns>
     public string GetBosValue()
     {
         return SpecialTokenMap.BosToken ?? DefaultBosToken;
@@ -34,6 +44,7 @@ public class XlmRobertaVocab : BaseVocab
     /// <summary>
     /// Gets the SEP (Separator) token value.
     /// </summary>
+    /// <returns>The SEP token value.</returns>
     public string GetSepValue()
     {
         return SpecialTokenMap.SepToken ?? DefaultSepToken;
@@ -42,6 +53,7 @@ public class XlmRobertaVocab : BaseVocab
     /// <summary>
     /// Gets the CLS (Classification) token value.
     /// </summary>
+    /// <returns>The CLS token value.</returns>
     public string GetClsValue()
     {
         return SpecialTokenMap.ClsToken ?? DefaultClsToken;
@@ -50,6 +62,7 @@ public class XlmRobertaVocab : BaseVocab
     /// <summary>
     /// Gets the EOS (End of Sentence) token value.
     /// </summary>
+    /// <returns>The EOS token value.</returns>
     public string GetEosValue()
     {
         return SpecialTokenMap.EosToken ?? DefaultEosToken;
@@ -58,11 +71,17 @@ public class XlmRobertaVocab : BaseVocab
     /// <summary>
     /// Gets the MASK token value.
     /// </summary>
+    /// <returns>The MASK token value.</returns>
     public string GetMaskValue()
     {
         return SpecialTokenMap.MaskToken ?? DefaultMaskToken;
     }
 
+    /// <summary>
+    /// Creates an instance of <see cref="XlmRobertaVocab"/> from a protobuf file.
+    /// </summary>
+    /// <param name="path">The path to the protobuf file.</param>
+    /// <returns>An instance of <see cref="XlmRobertaVocab"/>.</returns>
     public static XlmRobertaVocab FromFile(string path)
     {
         var proto = VocabHelper.OpenProtobufFile(path);
@@ -94,6 +113,11 @@ public class XlmRobertaVocab : BaseVocab
         return new XlmRobertaVocab(values, specialTokenMap);
     }
 
+    /// <summary>
+    /// Adds a special token to the values dictionary if it is not already present.
+    /// </summary>
+    /// <param name="values">The dictionary of token values and their corresponding IDs.</param>
+    /// <param name="token">The special token to add.</param>
     private static void AddSpecialToken(Dictionary<string, long> values, string token)
     {
         if (!values.ContainsKey(token))
@@ -102,6 +126,12 @@ public class XlmRobertaVocab : BaseVocab
         }
     }
 
+    /// <summary>
+    /// Creates an instance of <see cref="XlmRobertaVocab"/> from a protobuf file and a special token mapping file.
+    /// </summary>
+    /// <param name="path">The path to the protobuf file.</param>
+    /// <param name="specialTokenMappingPath">The path to the special token mapping file.</param>
+    /// <returns>An instance of <see cref="XlmRobertaVocab"/>.</returns>
     public static XlmRobertaVocab FromFileWithSpecialTokenMapping(string path, string specialTokenMappingPath)
     {
         var proto = VocabHelper.OpenProtobufFile(path);
@@ -125,7 +155,11 @@ public class XlmRobertaVocab : BaseVocab
         return new XlmRobertaVocab(values, specialTokenMap);
     }
 
-    // Helper method to add special token if present
+    /// <summary>
+    /// Adds a special token to the values dictionary if it is present and not already added.
+    /// </summary>
+    /// <param name="values">The dictionary of token values and their corresponding IDs.</param>
+    /// <param name="token">The special token to add.</param>
     private static void AddSpecialTokenIfPresent(Dictionary<string, long> values, string token)
     {
         if (token != null && !values.ContainsKey(token))
@@ -133,6 +167,4 @@ public class XlmRobertaVocab : BaseVocab
             values.Add(token, values.Count);
         }
     }
-
-
 }
