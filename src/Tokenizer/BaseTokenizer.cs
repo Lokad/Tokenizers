@@ -213,46 +213,56 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens.Select(token => _vocab.TokenToId(token)).ToList();
     }
 
-    public TokenizedInput Encode(String text1, String? text2, int maxLen, TruncationStrategy truncationStrategy,
+    public TokenizedInput Encode(byte[] inputTextBytes, byte[]? additionalInputTextBytes, int maxLen, TruncationStrategy truncationStrategy,
+    int stride)
+    {
+
+        var inputText = Encoding.UTF8.GetString(inputTextBytes);
+        var additionalInputText = additionalInputTextBytes == null ? null : Encoding.UTF8.GetString(additionalInputTextBytes);
+
+        return Encode(inputText, additionalInputText, maxLen, truncationStrategy, stride);
+    }
+
+    public TokenizedInput Encode(String inputText, String? additionalInputText, int maxLen, TruncationStrategy truncationStrategy,
         int stride)
     {
-        var tokens = TokenizeWithOffsets(text1);
-        var token_ids_1 = ConvertTokensToIds(tokens.Tokens);
-        var len_1 = token_ids_1.Count;
+        var inputTextTokens = TokenizeWithOffsets(inputText);
+        var inputTextTokensIds = ConvertTokensToIds(inputTextTokens.Tokens);
+        var inputTextTokensIdsCount = inputTextTokensIds.Count;
 
-        var token_ids_with_offsets_1 = new TokenIdsWithOffsets
+        var inpuTextTokensIdsWithOffsets = new TokenIdsWithOffsets
         {
-            Ids = token_ids_1,
-            Offsets = tokens.Offsets,
-            ReferenceOffsets = tokens.ReferenceOffsets.Select(_ => _.ToList()).ToList(),
-            Masks = tokens.Masks,
+            Ids = inputTextTokensIds,
+            Offsets = inputTextTokens.Offsets,
+            ReferenceOffsets = inputTextTokens.ReferenceOffsets.Select(_ => _.ToList()).ToList(),
+            Masks = inputTextTokens.Masks,
         };
 
-        TokenIdsWithOffsets? token_ids_with_offsets_2 = null;
-        var len_2 = 0;
-        if (text2 != null)
+        TokenIdsWithOffsets? additionalInputTextTokensIdsWithOffsets = null;
+        var additionalInputTextTokenIdsCount = 0;
+        if (additionalInputText != null)
         {
-            var tokens2 = TokenizeWithOffsets(text2);
-            var token_ids_2 = ConvertTokensToIds(tokens2.Tokens);
-            len_2 = token_ids_2.Count;
-            token_ids_with_offsets_2 = text2 == null ? null : new TokenIdsWithOffsets()
+            var additionalInputTextTokens = TokenizeWithOffsets(additionalInputText);
+            var additionalInputTextTokensIds = ConvertTokensToIds(additionalInputTextTokens.Tokens);
+            additionalInputTextTokenIdsCount = additionalInputTextTokensIds.Count;
+            additionalInputTextTokensIdsWithOffsets = additionalInputText == null ? null : new TokenIdsWithOffsets()
             {
-                Ids = token_ids_2,
-                Offsets = tokens2.Offsets,
-                ReferenceOffsets = tokens2.ReferenceOffsets.Select(_ => _.ToList()).ToList(),
-                Masks = tokens2.Masks,
+                Ids = additionalInputTextTokensIds,
+                Offsets = additionalInputTextTokens.Offsets,
+                ReferenceOffsets = additionalInputTextTokens.ReferenceOffsets.Select(_ => _.ToList()).ToList(),
+                Masks = additionalInputTextTokens.Masks,
             };
         }
 
-        var additional_tokens = BuildInputWithSpecialTokens(
-            tokens1: new TokenIdsWithOffsets
+        var allTokens = BuildInputWithSpecialTokens(
+            inputTokens: new TokenIdsWithOffsets
             {
                 Ids = new List<long>(),
                 Masks = new List<Mask>(),
                 Offsets = new List<Offset?>(),
                 ReferenceOffsets = new List<List<uint>>()
             },
-            tokens2: token_ids_with_offsets_2 == null ? null : new TokenIdsWithOffsets
+            additionalInputTokens: additionalInputTextTokensIdsWithOffsets == null ? null : new TokenIdsWithOffsets
             {
                 Ids = new List<long>(),
                 Masks = new List<Mask>(),
@@ -262,16 +272,16 @@ public class BaseTokenizer<T> where T : IVocab
             );
 
 
-        var total_len = len_1 + len_2 + additional_tokens.TokenIds.Count;
-        var num_truncated_tokens = total_len > maxLen ? total_len - maxLen : 0;
+        var totalTokensIdsCount = inputTextTokensIdsCount + additionalInputTextTokenIdsCount + allTokens.TokenIds.Count;
+        var truncatedTokensIdsCount = totalTokensIdsCount > maxLen ? totalTokensIdsCount - maxLen : 0;
 
         var (token_ids_with_offsets_1_x, token_ids_with_offsets_2_x, overflowing_tokens, _overflowing_offsets) =
-            TokenizationUtils.TruncateSequences(token_ids_with_offsets_1, token_ids_with_offsets_2,
-                num_truncated_tokens, truncationStrategy, stride);
-        token_ids_with_offsets_1 = token_ids_with_offsets_1_x;
+            TokenizationUtils.TruncateSequences(inpuTextTokensIdsWithOffsets, additionalInputTextTokensIdsWithOffsets,
+                truncatedTokensIdsCount, truncationStrategy, stride);
+        inpuTextTokensIdsWithOffsets = token_ids_with_offsets_1_x;
 
         var merged_tokenized_input =
-            BuildInputWithSpecialTokens(token_ids_with_offsets_1, token_ids_with_offsets_2);
+            BuildInputWithSpecialTokens(inpuTextTokensIdsWithOffsets, additionalInputTextTokensIdsWithOffsets);
 
         return new TokenizedInput()
         {
@@ -279,7 +289,7 @@ public class BaseTokenizer<T> where T : IVocab
             SegmentIds = merged_tokenized_input.SegmentIds,
             SpecialTokensMask = merged_tokenized_input.SpecialTokensMask,
             OverflowingTokens = overflowing_tokens,
-            NumTruncatedTokens = num_truncated_tokens,
+            NumTruncatedTokens = truncatedTokensIdsCount,
             TokenOffsets = merged_tokenized_input.TokenOffsets,
             ReferenceOffsets = merged_tokenized_input.ReferenceOffsets,
             Mask = merged_tokenized_input.Mask
@@ -289,33 +299,33 @@ public class BaseTokenizer<T> where T : IVocab
     /// <summary>
     /// Builds input with special tokens.
     /// </summary>
-    public virtual TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
+    public virtual TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets inputTokens, TokenIdsWithOffsets additionalInputTokens = null)
     {
-        var tokenSegmentIds = new List<byte>(new byte[tokens1.Ids.Count]);
-        var specialTokensMask = new List<byte>(new byte[tokens1.Ids.Count]);
+        var tokenSegmentIds = new List<byte>(new byte[inputTokens.Ids.Count]);
+        var specialTokensMask = new List<byte>(new byte[inputTokens.Ids.Count]);
 
-        if (tokens2 != null)
+        if (additionalInputTokens != null)
         {
-            var tokensIdsWithOffsets2Value = tokens2;
+            var tokensIdsWithOffsets2Value = additionalInputTokens;
             var length = tokensIdsWithOffsets2Value.Ids.Count;
 
             tokenSegmentIds.AddRange(Enumerable.Repeat((byte)1, length));
             specialTokensMask.AddRange(Enumerable.Repeat((byte)0, length));
 
-            tokens1.Ids.AddRange(tokensIdsWithOffsets2Value.Ids);
-            tokens1.Offsets.AddRange(tokensIdsWithOffsets2Value.Offsets);
-            tokens1.ReferenceOffsets.AddRange(tokensIdsWithOffsets2Value.ReferenceOffsets);
-            tokens1.Masks.AddRange(tokensIdsWithOffsets2Value.Masks);
+            inputTokens.Ids.AddRange(tokensIdsWithOffsets2Value.Ids);
+            inputTokens.Offsets.AddRange(tokensIdsWithOffsets2Value.Offsets);
+            inputTokens.ReferenceOffsets.AddRange(tokensIdsWithOffsets2Value.ReferenceOffsets);
+            inputTokens.Masks.AddRange(tokensIdsWithOffsets2Value.Masks);
         }
 
         return new TokenIdsWithSpecialTokens
         {
-            TokenIds = tokens1.Ids,
+            TokenIds = inputTokens.Ids,
             SegmentIds = tokenSegmentIds,
             SpecialTokensMask = specialTokensMask,
-            TokenOffsets = tokens1.Offsets,
-            ReferenceOffsets = tokens1.ReferenceOffsets,
-            Mask = tokens1.Masks
+            TokenOffsets = inputTokens.Offsets,
+            ReferenceOffsets = inputTokens.ReferenceOffsets,
+            Mask = inputTokens.Masks
         };
     }
 

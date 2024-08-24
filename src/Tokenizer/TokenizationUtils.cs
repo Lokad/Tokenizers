@@ -40,22 +40,6 @@ internal static class TokenizationUtils
     }
 
     /// <summary>
-    /// Get UTF 8 Bytes
-    /// </summary>
-    public static byte[] GetUtf8Bytes(string text)
-    {
-        return Encoding.UTF8.GetBytes(text);
-    }
-
-    /// <summary>
-    /// Get UTF 8 Chars
-    /// </summary>
-    public static char[] GetUtf8Chars(byte[] bytes)
-    {
-        return Encoding.UTF8.GetChars(bytes);
-    }
-
-    /// <summary>
     /// Get UTF 8 Bytes Count
     /// </summary>
     public static int GetUtf8BytesCount(string text)
