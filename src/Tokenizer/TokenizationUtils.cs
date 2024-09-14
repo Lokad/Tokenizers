@@ -4,6 +4,7 @@ using Lokad.Tokenizers.Vocab;
 using System.Globalization;
 using Lokad.Tokenizers.Exceptions;
 using System.Runtime.CompilerServices;
+using System.Buffers;
 
 [assembly: InternalsVisibleToAttribute("Lokad.Tokenizers.Tests")]
 
@@ -31,13 +32,6 @@ internal static class TokenizationUtils
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Get String Info
-    /// </summary>
-    public static StringInfo GetStringInfo(string text)
-    {
-        return new System.Globalization.StringInfo(text);
-    }
 
     /// <summary>
     /// Get UTF 8 Bytes Count
@@ -97,6 +91,13 @@ internal static class TokenizationUtils
         return Encoding.UTF8.GetString(substringBytes);
     }
 
+    public static byte[] SubstringByByteOffset(byte[] bytes, int start)
+    {
+        var substringBytes = new byte[bytes.Length - start];
+        Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
+        return substringBytes;
+    }
+
     /// <summary>
     /// Substring by byte offset
     /// </summary>
@@ -110,6 +111,35 @@ internal static class TokenizationUtils
         var substringBytes = new byte[end - start];
         Array.Copy(bytes, start, substringBytes, 0, end - start);
         return Encoding.UTF8.GetString(substringBytes);
+    }
+    public static byte[] SubstringByByteOffset(byte[] bytes, int start, int end)
+    {
+        if (end > bytes.Length || start > end)
+        {
+            throw new ArgumentOutOfRangeException("Invalid range");
+        }
+        var substringBytes = new byte[end - start];
+        Array.Copy(bytes, start, substringBytes, 0, end - start);
+        return substringBytes;
+    }
+
+    /// <summary>
+    /// Enumerate Runes by reading utf8 bytes until the end
+    /// </summary>
+    public static IEnumerable<Rune> BytesToRunes(byte[] bytes)
+    {
+        var index = 0;
+        while (index < bytes.Length)
+        {
+            var remBytes = SubstringByByteOffset(bytes, index);
+            var status = Rune.DecodeFromUtf8(remBytes, out var rune, out var bytesConsumed);
+            if (status == OperationStatus.InvalidData)
+            {
+                throw new Exception("Invalid UTF-8 data");
+            }
+            index += bytesConsumed;
+            yield return rune;
+        }
     }
 
     /// <summary>

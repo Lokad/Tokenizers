@@ -132,13 +132,13 @@ public class TokenizationUtilsTests
     [Fact]
     public void TestSubString_01()
     {
-        var s = "▁tokénized";
+        var s = Encoding.UTF8.GetBytes("▁tokénized");
 
 
         var prefix = TokenizationUtils.SubstringByByteOffset(s, 0);
 
         // Expected positions
-        var expected = "▁tokénized";
+        var expected = Encoding.UTF8.GetBytes("▁tokénized");
         // Assert that the character positions match the expected positions
         Assert.Equal(expected, prefix);
     }
@@ -146,13 +146,13 @@ public class TokenizationUtilsTests
     [Fact]
     public void TestSubString_02()
     {
-        var s = "▁tokénized";
+        var s = Encoding.UTF8.GetBytes("▁tokénized");
 
 
         var prefix = TokenizationUtils.SubstringByByteOffset(s, 3);
 
         // Expected positions
-        var expected = "tokénized";
+        var expected = Encoding.UTF8.GetBytes("tokénized");
         // Assert that the character positions match the expected positions
         Assert.Equal(expected, prefix);
     }

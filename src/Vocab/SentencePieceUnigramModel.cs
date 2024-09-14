@@ -129,13 +129,20 @@ public class SentencePieceModel
         runes.ForEach((i => charPositions.Add(i.Index)));
         charPositions.Add(TokenizationUtils.GetUtf8BytesCount(token.Text));
 
+        //HINT: When using token.Bytes it is not actually presents the correct byte count
+        //      of the text because it the text has been modified by reference.
+        //      So, we need to get the byte count of the current text not the original text.
+        //      Hence, we should introduce immutable Token structure to avoid this issue.
+        var tokenTextBytes = Encoding.UTF8.GetBytes(token.Text);
+
         var results = new Node?[charPositions.Count];
         var scores = Enumerable.Repeat(float.NegativeInfinity, charPositions.Count).ToArray();
         scores[0] = 0f;
 
         for (var charStart = 0; charStart < charPositions.Count - 1; charStart++)
         {
-            var prefix = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart]);
+            var prefixBytes = TokenizationUtils.SubstringByByteOffset(tokenTextBytes, charPositions[charStart]);
+            var prefix = Encoding.UTF8.GetString(prefixBytes);
             var matches = CommonPrefixSearch(prefix.ToString());
 
             foreach (var node in matches)
@@ -145,10 +152,11 @@ public class SentencePieceModel
 
                 if (localScore > scores[charEnd])
                 {
-                    var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charEnd]);
+                    var matchedBytes = TokenizationUtils.SubstringByByteOffset(tokenTextBytes, charPositions[charStart], charPositions[charEnd]);
+                    var matchedText = Encoding.UTF8.GetString(matchedBytes);
                     results[charEnd] = new Node
                     (
-                        text: t,
+                        text: matchedText,
                         score: localScore,
                         index: node.Index,
                         start: charStart,
@@ -162,10 +170,11 @@ public class SentencePieceModel
 
             if (scores[charStart + 1] <= float.MinValue)
             {
-                var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charStart + 1]);
+                var matchedBytes = TokenizationUtils.SubstringByByteOffset(tokenTextBytes, charPositions[charStart], charPositions[charStart + 1]);
+                var matchedText = Encoding.UTF8.GetString(matchedBytes);
                 results[charStart + 1] = new Node
                 (
-                    text: t,
+                    text: matchedText,
                     score: float.MinValue,
                     index: 0,
                     start: charStart,
@@ -221,25 +230,21 @@ public class SentencePieceModel
                 text.Append(node.Text);
                 var referenceOffsets = new List<uint>();
                 referenceOffsets.AddRange(node.ReferenceOffsets);
-                var consolidatedUnknown = new Token(text.ToString())
-                {
-                    Text = text.ToString(),
-                    Offset = new Offset(0, 0),
-                    ReferenceOffsets = referenceOffsets,
-                    Mask = Mask.Unknown,
-                };
+                var consolidatedUnknown = new Token(Encoding.UTF8.GetBytes(text.ToString()),
+                    offset: new Offset(0, 0),
+                    referenceOffsets: referenceOffsets,
+                    mask: Mask.Unknown
+                );
                 output.RemoveAt(output.Count - 1);
                 output.Add(consolidatedUnknown);
             }
             else
             {
-                output.Add(new Token(node.Text)
-                {
-                    Text = node.Text,
-                    Offset = new Offset(0, 0),
-                    ReferenceOffsets = node.ReferenceOffsets.ToList(),
-                    Mask = Mask.None,
-                });
+                output.Add(new Token(Encoding.UTF8.GetBytes(node.Text),
+                    offset: new Offset(0, 0),
+                    referenceOffsets: node.ReferenceOffsets.ToList(),
+                    mask: Mask.None
+                ));
             }
             isPrevUnknown = node.Index == 0;
         }
