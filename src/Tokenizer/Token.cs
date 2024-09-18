@@ -1,15 +1,10 @@
-﻿using System.Text;
-
-namespace Lokad.Tokenizers.Tokenizer;
+﻿namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
 /// token that references the original text but stores its own string representation.
 /// </summary>
 public class Token : IToken
 {
-
-    public byte[] Bytes { get; private set; }
-
     /// <summary>
     /// String representation
     /// </summary>
@@ -31,55 +26,52 @@ public class Token : IToken
     /// </summary>
     public Mask Mask { get; set; }
 
-
-    public Token(byte[] bytes)
+    /// <summary>
+    /// Creates a new owned token from a `String`.
+    /// </summary>
+    /// <param name="text">text reference</param>
+    public Token(string text)
     {
-        Bytes = bytes;
-        Text = Encoding.UTF8.GetString(bytes);
-        var text_size = (uint)Text.Length;
+        Text = text;
+        var text_size = (uint)text.Length;
         Offset = new Offset(0, text_size);
         ReferenceOffsets = Enumerable.Range(0, (int)text_size).Select(i => (uint)i).ToList();
         Mask = Mask.None;
     }
 
-    public Token(byte[] bytes, uint[] offsets)
+    /// <summary>
+    /// Creates a new token from a text and list of offsets.
+    /// </summary>
+    /// <param name="text">text reference</param>
+    /// <param name="offsets">reference positions with respect to the original text</param>
+    public Token(string text, uint[] offsets)
     {
-        Bytes = bytes;
-        Text = Encoding.UTF8.GetString(bytes);
-        var text_size = (uint)Text.Length;
+        Text = text;
         Offset = new Offset(0, (uint)offsets.Length);
         ReferenceOffsets = offsets;
         Mask = Mask.None;
     }
 
-    public Token(byte[] bytes, uint[] offsets, Mask mask)
+    public Token(string text, Offset offset, IReadOnlyList<uint> referenceOffsets, Mask mask)
     {
-        Bytes = bytes;
-        Text = Encoding.UTF8.GetString(bytes);
-        var text_size = (uint)Text.Length;
-        Offset = new Offset(0, (uint)offsets.Length);
-        ReferenceOffsets = offsets;
-        Mask = mask;
-    }
-
-    public Token(byte[] bytes, Offset offset, IReadOnlyList<uint> referenceOffsets, Mask mask)
-    {
-        Bytes = bytes;
-        Text = Encoding.UTF8.GetString(bytes);
-        var text_size = (uint)Text.Length;
+        Text = text;
         Offset = offset;
         ReferenceOffsets = referenceOffsets;
         Mask = mask;
     }
-
 
     public override string ToString()
     {
         return Text;
     }
 
+    public static Token From(string text)
+    {
+        return new Token(text);
+    }
+
     public Token Clone()
     {
-        return new Token(Bytes, Offset, new List<uint>(ReferenceOffsets), Mask);
+        return new Token(Text, Offset, new List<uint>(ReferenceOffsets), Mask);
     }
 }

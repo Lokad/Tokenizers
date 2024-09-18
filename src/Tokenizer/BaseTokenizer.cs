@@ -75,11 +75,19 @@ public class BaseTokenizer<T> where T : IVocab
     }
 
     /// <summary>
+    /// Tokenize a string, returns a list of tokens as strings.
+    /// </summary>
+    public List<string> Tokenize(string text)
+    {
+        return TokenizeWithOffsets(text).Tokens;
+    }
+
+    /// <summary>
     /// Tokenize a string, returning tokens with offset information
     /// </summary>
-    public TokensWithOffsets TokenizeWithOffsets(byte[] inputTextBytes)
+    public TokensWithOffsets TokenizeWithOffsets(string text)
     {
-        if (inputTextBytes == null || inputTextBytes.Length == 0)
+        if (string.IsNullOrWhiteSpace(text))
         {
             return new TokensWithOffsets
             {
@@ -90,9 +98,8 @@ public class BaseTokenizer<T> where T : IVocab
             };
         }
 
-        var runes = TokenizationUtils.BytesToRunes(inputTextBytes).ToList();
-        var initialOffsets = Enumerable.Range(0, runes.Count()).Select(i => (uint)i).ToArray();
-        var initialToken = new Token(inputTextBytes, initialOffsets);
+        var initialOffsets = Enumerable.Range(0, text.EnumerateRunes().Count()).Select(i => (uint)i).ToArray();
+        var initialToken = new Token(text, initialOffsets);
         var tokens = TokenizeToTokens(initialToken);
         var length = tokens.Count;
         var texts = new List<string>(length);
@@ -143,22 +150,29 @@ public class BaseTokenizer<T> where T : IVocab
             })
             .Select(token =>
             {
-
-                if (token.Mask != Mask.Special && token.Mask != Mask.Unknown)
+                // v-- this is where the token gets owned, all steps above handle Token (dealing with &str)
+                var ownedToken = new Token(token.Text)
                 {
-                    CleanText(token, true);
+                    Offset = token.Offset,
+                    ReferenceOffsets = token.ReferenceOffsets.ToList(),
+                    Mask = token.Mask
+                };
+
+                if (ownedToken.Mask != Mask.Special && ownedToken.Mask != Mask.Unknown)
+                {
+                    CleanText(ownedToken, true);
                     //apply the necessary transformations to the actual tokens (unless it's a special value)
                     if (_lowerCase)
                     {
-                        Lowercase(token);
+                        Lowercase(ownedToken);
                     }
                     if (_stripAccents)
                     {
-                        StripAccents(token);
+                        StripAccents(ownedToken);
                     }
                 }
 
-                return token;
+                return ownedToken;
             })
             .Where(token => !string.IsNullOrEmpty(token.Text))
             .ToList();
@@ -166,7 +180,7 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-    public Token DecomposeNfkc(Token token)
+    public void DecomposeNfkc(Token token)
     {
         // Perform NFKC normalization on the token text
         var decomposedText = token.Text.Normalize(NormalizationForm.FormKC);
@@ -182,15 +196,11 @@ public class BaseTokenizer<T> where T : IVocab
             currentOffset += (uint)decomposedText[i].ToString().Length;
         }
 
-        // Create a new token with the updated properties
-        var newToken = new Token(token.Bytes,
-            new Offset(
-                newReferenceOffsets.FirstOrDefault(),
-                newReferenceOffsets.LastOrDefault() + 1),
-            newReferenceOffsets,
-            token.Mask);
-
-        return newToken;
+        // Update the token's properties
+        token.Text = decomposedText;
+        token.ReferenceOffsets = newReferenceOffsets;
+        token.Offset.Begin = newReferenceOffsets.FirstOrDefault();
+        token.Offset.End = newReferenceOffsets.LastOrDefault() + 1;
     }
 
     /// <summary>
@@ -203,24 +213,20 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens.Select(token => _vocab.TokenToId(token)).ToList();
     }
 
-    public TokenizedInput Encode(String inputText, String? additionalInputText, int maxLen, TruncationStrategy truncationStrategy,
-    int stride)
-    {
-
-        var inputTextBytes = Encoding.UTF8.GetBytes(inputText);
-        var additionalInputTextBytes = additionalInputText == null ? null : Encoding.UTF8.GetBytes(additionalInputText);
-
-        return Encode(inputTextBytes, additionalInputTextBytes, maxLen, truncationStrategy, stride);
-    }
-
     public TokenizedInput Encode(byte[] inputTextBytes, byte[]? additionalInputTextBytes, int maxLen, TruncationStrategy truncationStrategy,
-        int stride)
+    int stride)
     {
 
         var inputText = Encoding.UTF8.GetString(inputTextBytes);
         var additionalInputText = additionalInputTextBytes == null ? null : Encoding.UTF8.GetString(additionalInputTextBytes);
 
-        var inputTextTokens = TokenizeWithOffsets(inputTextBytes);
+        return Encode(inputText, additionalInputText, maxLen, truncationStrategy, stride);
+    }
+
+    public TokenizedInput Encode(String inputText, String? additionalInputText, int maxLen, TruncationStrategy truncationStrategy,
+        int stride)
+    {
+        var inputTextTokens = TokenizeWithOffsets(inputText);
         var inputTextTokensIds = ConvertTokensToIds(inputTextTokens.Tokens);
         var inputTextTokensIdsCount = inputTextTokensIds.Count;
 
@@ -236,7 +242,7 @@ public class BaseTokenizer<T> where T : IVocab
         var additionalInputTextTokenIdsCount = 0;
         if (additionalInputText != null)
         {
-            var additionalInputTextTokens = TokenizeWithOffsets(additionalInputTextBytes);
+            var additionalInputTextTokens = TokenizeWithOffsets(additionalInputText);
             var additionalInputTextTokensIds = ConvertTokensToIds(additionalInputTextTokens.Tokens);
             additionalInputTextTokenIdsCount = additionalInputTextTokensIds.Count;
             additionalInputTextTokensIdsWithOffsets = additionalInputText == null ? null : new TokenIdsWithOffsets()
@@ -378,9 +384,9 @@ public class BaseTokenizer<T> where T : IVocab
         };
         return SplitOnSubstr(token, testSubstr, true);
     }
-
+    
     // Private methods
-
+    
     /// <summary>
     /// Cleans-up tokenization artifacts (for example whitespace before punctuation)
     /// </summary>
@@ -409,7 +415,7 @@ public class BaseTokenizer<T> where T : IVocab
         foreach (var part in parts)
         {
             var offsets = initialToken.ReferenceOffsets.SkipWhile((offset, index) => char.IsWhiteSpace(initialToken.Text[index])).Take(part.Length).ToArray();
-            tokens.Add(new Token(Encoding.UTF8.GetBytes(part), offsets));
+            tokens.Add(new Token(part, offsets));
         }
         return tokens;
     }
@@ -438,22 +444,24 @@ public class BaseTokenizer<T> where T : IVocab
                         var trimmedText = TokenizationUtils.SubstringRunes(token.Text, bytesBegin, bytesIdx - bytesBegin).TrimEnd();
                         if (trimmedText.EnumerateRunes().Count() > 0)
                         {
-                            tokens.Add(new Token(Encoding.UTF8.GetBytes(trimmedText),
-                                offset: new Offset(token.Offset.Begin + charBegin, token.Offset.Begin + charBegin + (uint)trimmedText.Length),
-                                referenceOffsets: token.ReferenceOffsets.Skip((int)charBegin).Take(trimmedText.EnumerateRunes().Count()).ToArray(),
-                                mask: Mask.None
-                            ));
+                            tokens.Add(new Token(trimmedText)
+                            {
+                                Offset = new Offset(token.Offset.Begin + charBegin, token.Offset.Begin + charBegin + (uint)trimmedText.Length),
+                                ReferenceOffsets = token.ReferenceOffsets.Skip((int)charBegin).Take(trimmedText.EnumerateRunes().Count()).ToArray(),
+                                Mask = Mask.None
+                            });
                         }
                     }
 
                     if (addSeparators)
                     {
                         // Add separator token
-                        tokens.Add(new Token(Encoding.UTF8.GetBytes(TokenizationUtils.SubstringRunes(token.Text, bytesIdx, matchedBytes)),
-                            offset: new Offset(token.Offset.Begin + (uint)charIdx, token.Offset.Begin + (uint)charIdx + (uint)matchedChars),
-                            referenceOffsets: token.ReferenceOffsets.Skip(charIdx).Take(matchedChars).ToArray(),
-                            mask: setMask
-                        ));
+                        tokens.Add(new Token(TokenizationUtils.SubstringRunes(token.Text, bytesIdx, matchedBytes))
+                        {
+                            Offset = new Offset(token.Offset.Begin + (uint)charIdx, token.Offset.Begin + (uint)charIdx + (uint)matchedChars),
+                            ReferenceOffsets = token.ReferenceOffsets.Skip(charIdx).Take(matchedChars).ToArray(),
+                            Mask = setMask
+                        });
                     }
 
                     // Reset indices
@@ -462,7 +470,7 @@ public class BaseTokenizer<T> where T : IVocab
                 }
             }
         }
-        var utf8BytesCount = token.Bytes.Length;
+        var utf8BytesCount = TokenizationUtils.GetUtf8BytesCount(token.Text);
         if (bytesBegin < utf8BytesCount)
         {
             // Add last buffered token if there is anything left
@@ -472,11 +480,13 @@ public class BaseTokenizer<T> where T : IVocab
             {
                 charCount = token.Text.EnumerateRunes().Count();
             }
-            tokens.Add(new Token(Encoding.UTF8.GetBytes(text),
-                offset :new Offset((uint)(token.Offset.Begin + charBegin), (uint)(token.Offset.Begin + charCount)),
-                referenceOffsets : token.ReferenceOffsets.Skip((int)charBegin).Take(charCount).ToArray(),
-                mask : Mask.None
-            ));
+            tokens.Add(new Token(text)
+            {
+                Text = text,
+                Offset = new Offset((uint)(token.Offset.Begin + charBegin), (uint)(token.Offset.Begin + charCount)),
+                ReferenceOffsets = token.ReferenceOffsets.Skip((int)charBegin).Take(charCount).ToArray(),
+                Mask = Mask.None
+            });
         }
         return tokens;
     }
@@ -493,7 +503,7 @@ public class BaseTokenizer<T> where T : IVocab
             if (char.IsPunctuation(charCurrent))
             {
                 var offsets = token.ReferenceOffsets.Skip(start).Take(1).ToArray();
-                tokens.Add(new Token(Encoding.UTF8.GetBytes(text.Substring(start, 1)), offsets,Mask.Punctuation ));
+                tokens.Add(new Token(text.Substring(start, 1), offsets) { Mask = Mask.Punctuation });
                 start++;
             }
             else
@@ -504,7 +514,7 @@ public class BaseTokenizer<T> where T : IVocab
                     end++;
                 }
                 var offsets = token.ReferenceOffsets.Skip(start).Take(end - start).ToArray();
-                tokens.Add(new Token(Encoding.UTF8.GetBytes(text.Substring(start, end - start)), offsets));
+                tokens.Add(new Token(text.Substring(start, end - start), offsets));
                 start = end;
             }
         }
@@ -523,7 +533,7 @@ public class BaseTokenizer<T> where T : IVocab
             if (IsCjkChar(charCurrent))
             {
                 var offsets = token.ReferenceOffsets.Skip(start).Take(1).ToArray();
-                tokens.Add(new Token(Encoding.UTF8.GetBytes(text.Substring(start, 1)), offsets, Mask.CJK ));
+                tokens.Add(new Token(text.Substring(start, 1), offsets) { Mask = Mask.CJK });
                 start++;
             }
             else
@@ -534,7 +544,7 @@ public class BaseTokenizer<T> where T : IVocab
                     end++;
                 }
                 var offsets = token.ReferenceOffsets.Skip(start).Take(end - start).ToArray();
-                tokens.Add(new Token(Encoding.UTF8.GetBytes(text.Substring(start, end - start)), offsets));
+                tokens.Add(new Token(text.Substring(start, end - start), offsets));
                 start = end;
             }
         }
@@ -555,7 +565,7 @@ public class BaseTokenizer<T> where T : IVocab
         }
         token.Text = token.Text.Replace("``", "\"").Replace("''", "\"");
     }
-
+    
     private void Lowercase(Token token)
     {
         token.Text = token.Text.ToLowerInvariant();
