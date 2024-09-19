@@ -213,16 +213,6 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens.Select(token => _vocab.TokenToId(token)).ToList();
     }
 
-    public TokenizedInput Encode(byte[] inputTextBytes, byte[]? additionalInputTextBytes, int maxLen, TruncationStrategy truncationStrategy,
-    int stride)
-    {
-
-        var inputText = Encoding.UTF8.GetString(inputTextBytes);
-        var additionalInputText = additionalInputTextBytes == null ? null : Encoding.UTF8.GetString(additionalInputTextBytes);
-
-        return Encode(inputText, additionalInputText, maxLen, truncationStrategy, stride);
-    }
-
     public TokenizedInput Encode(String inputText, String? additionalInputText, int maxLen, TruncationStrategy truncationStrategy,
         int stride)
     {
