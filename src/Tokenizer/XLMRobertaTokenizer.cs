@@ -75,15 +75,15 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 
                 // Manually replacing whitespace characters
                 var newText = new StringBuilder();
-                foreach (var c in token.Text.EnumerateRunes())
+                foreach (var c in token.Text.AsSpan().EnumerateRunes().ToList())
                 {
                     newText.Append(TokenizationUtils.IsWhitespace(c) ? new Rune(Constants.LowerOneEighthBlock) : c.ToString());
                 }
-                token.Text = newText.ToString();
+                token.Text = newText.ToString().ToCharArray();
 
-                if (!token.Text.StartsWith(Constants.LowerOneEighthBlock))
+                if (!new string(token.Text).StartsWith(Constants.LowerOneEighthBlock))
                 {
-                    token.Text = Constants.LowerOneEighthBlock + token.Text;
+                    token.Text = (Constants.LowerOneEighthBlock.ToString() + new string(token.Text)).ToCharArray();
                     var newReferenceOffsets = new List<uint> { 0 };
                     newReferenceOffsets.AddRange(token.ReferenceOffsets);
                     token.ReferenceOffsets = newReferenceOffsets;

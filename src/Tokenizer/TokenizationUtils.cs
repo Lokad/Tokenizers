@@ -11,23 +11,35 @@ namespace Lokad.Tokenizers.Tokenizer;
 
 internal static class TokenizationUtils
 {
-    /// <summary>
-    /// Substring Runes (characters)
-    /// </summary>
-    public static string SubstringRunes(string text, int start, int length)
+
+    // extension method to enumerate runes to list
+    public static List<Rune> ToList(this SpanRuneEnumerator enumerator)
     {
-        var sb = new StringBuilder();
-        text.EnumerateRunes().Skip(start).Take(length).ToList().ForEach(r => sb.Append(r));
-        return sb.ToString();
+        var runes = new List<Rune>();
+        foreach (var rune in enumerator)
+        {
+            runes.Add(rune);
+        }
+        return runes;
     }
 
     /// <summary>
     /// Substring Runes (characters)
     /// </summary>
-    public static string SubstringRunes(string text, int start)
+    public static char[] SubstringRunes(ReadOnlySpan<char> text, int start, int length)
     {
         var sb = new StringBuilder();
-        text.EnumerateRunes().Skip(start).ToList().ForEach(r => sb.Append(r));
+        text.EnumerateRunes().ToList().Skip(start).Take(length).ToList().ForEach(r => sb.Append(r));
+        return sb.ToString().ToCharArray();
+    }
+
+    /// <summary>
+    /// Substring Runes (characters)
+    /// </summary>
+    public static string SubstringRunes(ReadOnlySpan<char> text, int start)
+    {
+        var sb = new StringBuilder();
+        text.EnumerateRunes().ToList().Skip(start).ToList().ForEach(r => sb.Append(r));
         return sb.ToString();
     }
 
@@ -120,7 +132,7 @@ internal static class TokenizationUtils
         var cleanedString = new StringBuilder(token.Text.Length);
         var characterMapping = new List<uint>(token.Text.Length);
 
-        foreach (var (character, position) in token.Text.EnumerateRunes().Zip(token.ReferenceOffsets))
+        foreach (var (character, position) in token.Text.AsSpan().EnumerateRunes().ToList().Zip(token.ReferenceOffsets))
         {
             if (IsControl(character, strict) || character == new Rune('\x00') || character == new Rune('\uFFFD'))
             {
@@ -131,7 +143,7 @@ internal static class TokenizationUtils
             characterMapping.Add(position);
         }
 
-        token.Text = cleanedString.ToString();
+        token.Text = cleanedString.ToString().ToCharArray();
         token.ReferenceOffsets = characterMapping;
         token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
     }
@@ -191,7 +203,7 @@ internal static class TokenizationUtils
             }
         }
 
-        token.Text = lowerCasedString.ToString();
+        token.Text = lowerCasedString.ToString().ToCharArray();
         token.ReferenceOffsets = characterMapping;
         token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
     }
@@ -205,13 +217,13 @@ internal static class TokenizationUtils
         var decomposedString = new StringBuilder(capacity);
         var characterMapping = new List<uint>(capacity);
         var curPosition = 0;
-        var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
+        var normalizedString = new string(token.Text).Normalize(NormalizationForm.FormKC);
         foreach (var (character, currentExtraCharSize) in TokenizationUtils.NFKC(normalizedString))
         {
             var extraCharSize = 0;
 
             //HINT: [@eslam] check if character is removed from the original text after normalization
-            if (!token.Text.EnumerateRunes().Contains(character))
+            if (!token.Text.AsSpan().EnumerateRunes().ToList().Contains(character))
                 extraCharSize -= currentExtraCharSize;
 
             decomposedString.Append(character);
@@ -236,7 +248,7 @@ internal static class TokenizationUtils
             curPosition += 1; // Adjust based on Unicode character width if needed
         }
 
-        token.Text = decomposedString.ToString();//.Normalize(NormalizationForm.FormKC);
+        token.Text = decomposedString.ToString().ToCharArray();//.Normalize(NormalizationForm.FormKC);
         token.ReferenceOffsets = characterMapping;
         token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
         token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
