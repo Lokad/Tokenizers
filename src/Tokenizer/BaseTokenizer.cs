@@ -357,11 +357,11 @@ public class BaseTokenizer<T> where T : IVocab
     protected List<Token> SplitOnSpecialTokens(Token token, IVocab vocab)
     {
 
-        Func<string, (int, int, Mask)> testSubstr = (s) =>
+        Func<char[], (int, int, Mask)> testSubstr = (s) =>
         {
             foreach (var specialValue in vocab.SpecialValues.Keys)
             {
-                if (s.StartsWith(specialValue))
+                if (new string(s).StartsWith(specialValue))
                 {
                     return (
                         specialValue.Length,
@@ -410,7 +410,7 @@ public class BaseTokenizer<T> where T : IVocab
         return tokens;
     }
 
-    private List<Token> SplitOnSubstr(Token token, Func<string, (int, int, Mask)> testSubstr, bool addSeparators)
+    private List<Token> SplitOnSubstr(Token token, Func<char[], (int, int, Mask)> testSubstr, bool addSeparators)
     {
         var tokens = new List<Token>();
         uint charBegin = 0;
@@ -460,7 +460,7 @@ public class BaseTokenizer<T> where T : IVocab
                 }
             }
         }
-        var utf8BytesCount = TokenizationUtils.GetUtf8BytesCount(new string(token.Text));
+        var utf8BytesCount = TokenizationUtils.GetUtf8BytesCount(token.Text);
         if (bytesBegin < utf8BytesCount)
         {
             // Add last buffered token if there is anything left

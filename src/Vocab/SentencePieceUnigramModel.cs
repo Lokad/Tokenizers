@@ -127,7 +127,7 @@ public class SentencePieceModel
 
         var runes = TokenizationUtils.CharIndicesForRunes(new string(token.Text)).ToList();
         runes.ForEach((i => charPositions.Add(i.Index)));
-        charPositions.Add(TokenizationUtils.GetUtf8BytesCount(new string(token.Text)));
+        charPositions.Add(TokenizationUtils.GetUtf8BytesCount(token.Text));
 
         var results = new Node?[charPositions.Count];
         var scores = Enumerable.Repeat(float.NegativeInfinity, charPositions.Count).ToArray();
@@ -135,8 +135,8 @@ public class SentencePieceModel
 
         for (var charStart = 0; charStart < charPositions.Count - 1; charStart++)
         {
-            var prefix = TokenizationUtils.SubstringByByteOffset(new string(token.Text), charPositions[charStart]);
-            var matches = CommonPrefixSearch(prefix.ToString());
+            var prefix = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart]);
+            var matches = CommonPrefixSearch(new string(prefix));
 
             foreach (var node in matches)
             {
@@ -145,10 +145,10 @@ public class SentencePieceModel
 
                 if (localScore > scores[charEnd])
                 {
-                    var t = TokenizationUtils.SubstringByByteOffset(new string(token.Text), charPositions[charStart], charPositions[charEnd]);
+                    var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charEnd]);
                     results[charEnd] = new Node
                     (
-                        text: t,
+                        text: new string(t),
                         score: localScore,
                         index: node.Index,
                         start: charStart,
@@ -162,10 +162,10 @@ public class SentencePieceModel
 
             if (scores[charStart + 1] <= float.MinValue)
             {
-                var t = TokenizationUtils.SubstringByByteOffset(new string(token.Text), charPositions[charStart], charPositions[charStart + 1]);
+                var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charStart + 1]);
                 results[charStart + 1] = new Node
                 (
-                    text: t,
+                    text: new string(t),
                     score: float.MinValue,
                     index: 0,
                     start: charStart,

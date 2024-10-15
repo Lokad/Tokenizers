@@ -12,17 +12,6 @@ namespace Lokad.Tokenizers.Tokenizer;
 internal static class TokenizationUtils
 {
 
-    // extension method to enumerate runes to list
-    public static List<Rune> ToList(this SpanRuneEnumerator enumerator)
-    {
-        var runes = new List<Rune>();
-        foreach (var rune in enumerator)
-        {
-            runes.Add(rune);
-        }
-        return runes;
-    }
-
     /// <summary>
     /// Substring Runes (characters)
     /// </summary>
@@ -36,25 +25,17 @@ internal static class TokenizationUtils
     /// <summary>
     /// Substring Runes (characters)
     /// </summary>
-    public static string SubstringRunes(ReadOnlySpan<char> text, int start)
+    public static char[] SubstringRunes(ReadOnlySpan<char> text, int start)
     {
         var sb = new StringBuilder();
         text.EnumerateRunes().ToList().Skip(start).ToList().ForEach(r => sb.Append(r));
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Get String Info
-    /// </summary>
-    public static StringInfo GetStringInfo(string text)
-    {
-        return new System.Globalization.StringInfo(text);
+        return sb.ToString().ToCharArray();
     }
 
     /// <summary>
     /// Get UTF 8 Bytes Count
     /// </summary>
-    public static int GetUtf8BytesCount(string text)
+    public static int GetUtf8BytesCount(ReadOnlySpan<char> text)
     {
         return Encoding.UTF8.GetByteCount(text);
     }
@@ -78,7 +59,7 @@ internal static class TokenizationUtils
     /// NFKC decomposition
     /// </summary>
     public static IEnumerable<(Rune Character, int ExtraCharSize)> NFKC(string str)
-    {
+            {
         var runes = str.EnumerateRunes().ToList();
         for (var i = 0; i < runes.Count; i++)
         {
@@ -101,18 +82,18 @@ internal static class TokenizationUtils
     /// <summary>
     /// Substring by byte offset
     /// </summary>
-    public static string SubstringByByteOffset(string s, int start)
+    public static char[] SubstringByByteOffset(char[] s, int start)
     {
         var bytes = Encoding.UTF8.GetBytes(s);
         var substringBytes = new byte[bytes.Length - start];
         Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
-        return Encoding.UTF8.GetString(substringBytes);
+        return Encoding.UTF8.GetChars(substringBytes);
     }
 
     /// <summary>
     /// Substring by byte offset
     /// </summary>
-    public static string SubstringByByteOffset(string s, int start, int end)
+    public static char[] SubstringByByteOffset(char[] s, int start, int end)
     {
         var bytes = Encoding.UTF8.GetBytes(s);
         if (end > bytes.Length || start > end)
@@ -121,7 +102,7 @@ internal static class TokenizationUtils
         }
         var substringBytes = new byte[end - start];
         Array.Copy(bytes, start, substringBytes, 0, end - start);
-        return Encoding.UTF8.GetString(substringBytes);
+        return Encoding.UTF8.GetChars(substringBytes);
     }
 
     /// <summary>
@@ -485,6 +466,19 @@ internal static class TokenizationUtils
         {
             throw new ValueTokenizerException("First sequence too short for first only truncation");
         }
+    }
+
+    /// <summary>
+    /// extension method to enumerate span runes to list
+    /// </summary>
+    public static List<Rune> ToList(this SpanRuneEnumerator enumerator)
+    {
+        var runes = new List<Rune>();
+        foreach (var rune in enumerator)
+        {
+            runes.Add(rune);
+        }
+        return runes;
     }
 
 }
