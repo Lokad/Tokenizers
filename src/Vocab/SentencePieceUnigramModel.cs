@@ -125,7 +125,7 @@ public class SentencePieceModel
     {
         var charPositions = new List<int>();
 
-        var runes = TokenizationUtils.CharIndicesForRunes(token.Text).ToList();
+        var runes = TokenizationUtils.CharIndicesForRunes(new string(token.Text)).ToList();
         runes.ForEach((i => charPositions.Add(i.Index)));
         charPositions.Add(TokenizationUtils.GetUtf8BytesCount(token.Text));
 
@@ -136,7 +136,7 @@ public class SentencePieceModel
         for (var charStart = 0; charStart < charPositions.Count - 1; charStart++)
         {
             var prefix = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart]);
-            var matches = CommonPrefixSearch(prefix.ToString());
+            var matches = CommonPrefixSearch(new string(prefix));
 
             foreach (var node in matches)
             {
@@ -148,7 +148,7 @@ public class SentencePieceModel
                     var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charEnd]);
                     results[charEnd] = new Node
                     (
-                        text: t,
+                        text: new string(t),
                         score: localScore,
                         index: node.Index,
                         start: charStart,
@@ -165,7 +165,7 @@ public class SentencePieceModel
                 var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charStart + 1]);
                 results[charStart + 1] = new Node
                 (
-                    text: t,
+                    text: new string(t),
                     score: float.MinValue,
                     index: 0,
                     start: charStart,
@@ -217,13 +217,13 @@ public class SentencePieceModel
             if (isPrevUnknown && (node.Index == 0))
             {
                 var prevToken = output.Last();
-                var text = new StringBuilder(prevToken.Text);
+                var text = new StringBuilder(new string(prevToken.Text));
                 text.Append(node.Text);
                 var referenceOffsets = new List<uint>();
                 referenceOffsets.AddRange(node.ReferenceOffsets);
                 var consolidatedUnknown = new Token(text.ToString())
                 {
-                    Text = text.ToString(),
+                    Text = text.ToString().ToCharArray(),
                     Offset = new Offset(0, 0),
                     ReferenceOffsets = referenceOffsets,
                     Mask = Mask.Unknown,
@@ -235,7 +235,7 @@ public class SentencePieceModel
             {
                 output.Add(new Token(node.Text)
                 {
-                    Text = node.Text,
+                    Text = node.Text.ToCharArray(),
                     Offset = new Offset(0, 0),
                     ReferenceOffsets = node.ReferenceOffsets.ToList(),
                     Mask = Mask.None,
@@ -278,7 +278,7 @@ public class SentencePieceModel
                 }
             }
 
-            if (!token.Text.StartsWith(whitespaceToken) && previousMask != Mask.Punctuation && previousMask != Mask.Whitespace)
+            if (!new string(token.Text).StartsWith(whitespaceToken) && previousMask != Mask.Punctuation && previousMask != Mask.Whitespace)
             {
                 token.Mask = Mask.Continuation;
                 previousMask = Mask.Continuation;

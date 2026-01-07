@@ -11,38 +11,31 @@ namespace Lokad.Tokenizers.Tokenizer;
 
 internal static class TokenizationUtils
 {
+
     /// <summary>
     /// Substring Runes (characters)
     /// </summary>
-    public static string SubstringRunes(string text, int start, int length)
+    public static char[] SubstringRunes(ReadOnlySpan<char> text, int start, int length)
     {
         var sb = new StringBuilder();
-        text.EnumerateRunes().Skip(start).Take(length).ToList().ForEach(r => sb.Append(r));
-        return sb.ToString();
+        text.EnumerateRunes().ToList().Skip(start).Take(length).ToList().ForEach(r => sb.Append(r));
+        return sb.ToString().ToCharArray();
     }
 
     /// <summary>
     /// Substring Runes (characters)
     /// </summary>
-    public static string SubstringRunes(string text, int start)
+    public static char[] SubstringRunes(ReadOnlySpan<char> text, int start)
     {
         var sb = new StringBuilder();
-        text.EnumerateRunes().Skip(start).ToList().ForEach(r => sb.Append(r));
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Get String Info
-    /// </summary>
-    public static StringInfo GetStringInfo(string text)
-    {
-        return new System.Globalization.StringInfo(text);
+        text.EnumerateRunes().ToList().Skip(start).ToList().ForEach(r => sb.Append(r));
+        return sb.ToString().ToCharArray();
     }
 
     /// <summary>
     /// Get UTF 8 Bytes Count
     /// </summary>
-    public static int GetUtf8BytesCount(string text)
+    public static int GetUtf8BytesCount(ReadOnlySpan<char> text)
     {
         return Encoding.UTF8.GetByteCount(text);
     }
@@ -66,7 +59,7 @@ internal static class TokenizationUtils
     /// NFKC decomposition
     /// </summary>
     public static IEnumerable<(Rune Character, int ExtraCharSize)> NFKC(string str)
-    {
+            {
         var runes = str.EnumerateRunes().ToList();
         for (var i = 0; i < runes.Count; i++)
         {
@@ -89,18 +82,18 @@ internal static class TokenizationUtils
     /// <summary>
     /// Substring by byte offset
     /// </summary>
-    public static string SubstringByByteOffset(string s, int start)
+    public static char[] SubstringByByteOffset(char[] s, int start)
     {
         var bytes = Encoding.UTF8.GetBytes(s);
         var substringBytes = new byte[bytes.Length - start];
         Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
-        return Encoding.UTF8.GetString(substringBytes);
+        return Encoding.UTF8.GetChars(substringBytes);
     }
 
     /// <summary>
     /// Substring by byte offset
     /// </summary>
-    public static string SubstringByByteOffset(string s, int start, int end)
+    public static char[] SubstringByByteOffset(char[] s, int start, int end)
     {
         var bytes = Encoding.UTF8.GetBytes(s);
         if (end > bytes.Length || start > end)
@@ -109,7 +102,7 @@ internal static class TokenizationUtils
         }
         var substringBytes = new byte[end - start];
         Array.Copy(bytes, start, substringBytes, 0, end - start);
-        return Encoding.UTF8.GetString(substringBytes);
+        return Encoding.UTF8.GetChars(substringBytes);
     }
 
     /// <summary>
@@ -120,7 +113,7 @@ internal static class TokenizationUtils
         var cleanedString = new StringBuilder(token.Text.Length);
         var characterMapping = new List<uint>(token.Text.Length);
 
-        foreach (var (character, position) in token.Text.EnumerateRunes().Zip(token.ReferenceOffsets))
+        foreach (var (character, position) in token.Text.AsSpan().EnumerateRunes().ToList().Zip(token.ReferenceOffsets))
         {
             if (IsControl(character, strict) || character == new Rune('\x00') || character == new Rune('\uFFFD'))
             {
@@ -131,7 +124,7 @@ internal static class TokenizationUtils
             characterMapping.Add(position);
         }
 
-        token.Text = cleanedString.ToString();
+        token.Text = cleanedString.ToString().ToCharArray();
         token.ReferenceOffsets = characterMapping;
         token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
     }
@@ -191,7 +184,7 @@ internal static class TokenizationUtils
             }
         }
 
-        token.Text = lowerCasedString.ToString();
+        token.Text = lowerCasedString.ToString().ToCharArray();
         token.ReferenceOffsets = characterMapping;
         token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
     }
@@ -205,13 +198,13 @@ internal static class TokenizationUtils
         var decomposedString = new StringBuilder(capacity);
         var characterMapping = new List<uint>(capacity);
         var curPosition = 0;
-        var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
+        var normalizedString = new string(token.Text).Normalize(NormalizationForm.FormKC);
         foreach (var (character, currentExtraCharSize) in TokenizationUtils.NFKC(normalizedString))
         {
             var extraCharSize = 0;
 
             //HINT: [@eslam] check if character is removed from the original text after normalization
-            if (!token.Text.EnumerateRunes().Contains(character))
+            if (!token.Text.AsSpan().EnumerateRunes().ToList().Contains(character))
                 extraCharSize -= currentExtraCharSize;
 
             decomposedString.Append(character);
@@ -236,7 +229,7 @@ internal static class TokenizationUtils
             curPosition += 1; // Adjust based on Unicode character width if needed
         }
 
-        token.Text = decomposedString.ToString();//.Normalize(NormalizationForm.FormKC);
+        token.Text = decomposedString.ToString().ToCharArray();//.Normalize(NormalizationForm.FormKC);
         token.ReferenceOffsets = characterMapping;
         token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
         token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
@@ -473,6 +466,19 @@ internal static class TokenizationUtils
         {
             throw new ValueTokenizerException("First sequence too short for first only truncation");
         }
+    }
+
+    /// <summary>
+    /// extension method to enumerate span runes to list
+    /// </summary>
+    public static List<Rune> ToList(this SpanRuneEnumerator enumerator)
+    {
+        var runes = new List<Rune>();
+        foreach (var rune in enumerator)
+        {
+            runes.Add(rune);
+        }
+        return runes;
     }
 
 }

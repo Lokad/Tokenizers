@@ -135,10 +135,10 @@ public class TokenizationUtilsTests
         var s = "▁tokénized";
 
 
-        var prefix = TokenizationUtils.SubstringByByteOffset(s, 0);
+        var prefix = TokenizationUtils.SubstringByByteOffset(s.ToCharArray(), 0);
 
         // Expected positions
-        var expected = "▁tokénized";
+        var expected = "▁tokénized".ToCharArray();
         // Assert that the character positions match the expected positions
         Assert.Equal(expected, prefix);
     }
@@ -149,10 +149,10 @@ public class TokenizationUtilsTests
         var s = "▁tokénized";
 
 
-        var prefix = TokenizationUtils.SubstringByByteOffset(s, 3);
+        var prefix = TokenizationUtils.SubstringByByteOffset(s.ToCharArray(), 3);
 
         // Expected positions
-        var expected = "tokénized";
+        var expected = "tokénized".ToCharArray();
         // Assert that the character positions match the expected positions
         Assert.Equal(expected, prefix);
     }

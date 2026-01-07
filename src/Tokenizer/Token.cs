@@ -8,7 +8,7 @@ public class Token : IToken
     /// <summary>
     /// String representation
     /// </summary>
-    public string Text { get; set; }
+    public char[] Text { get; set; }
 
     /// <summary>
     /// Start and end positions of the token with respect to the original text
@@ -30,9 +30,9 @@ public class Token : IToken
     /// Creates a new owned token from a `String`.
     /// </summary>
     /// <param name="text">text reference</param>
-    public Token(string text)
+    public Token(ReadOnlySpan<char> text)
     {
-        Text = text;
+        Text = text.ToArray();
         var text_size = (uint)text.Length;
         Offset = new Offset(0, text_size);
         ReferenceOffsets = Enumerable.Range(0, (int)text_size).Select(i => (uint)i).ToList();
@@ -44,17 +44,17 @@ public class Token : IToken
     /// </summary>
     /// <param name="text">text reference</param>
     /// <param name="offsets">reference positions with respect to the original text</param>
-    public Token(string text, uint[] offsets)
+    public Token(ReadOnlySpan<char> text, uint[] offsets)
     {
-        Text = text;
+        Text = text.ToArray();
         Offset = new Offset(0, (uint)offsets.Length);
         ReferenceOffsets = offsets;
         Mask = Mask.None;
     }
 
-    public Token(string text, Offset offset, IReadOnlyList<uint> referenceOffsets, Mask mask)
+    public Token(ReadOnlySpan<char> text, Offset offset, IReadOnlyList<uint> referenceOffsets, Mask mask)
     {
-        Text = text;
+        Text = text.ToArray();
         Offset = offset;
         ReferenceOffsets = referenceOffsets;
         Mask = mask;
@@ -62,7 +62,7 @@ public class Token : IToken
 
     public override string ToString()
     {
-        return Text;
+        return new string(Text);
     }
 
     public static Token From(string text)
