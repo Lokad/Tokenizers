@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    name: validate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore locked dependencies
+        run: dotnet restore Lokad.Tokenizers.slnx --locked-mode --tl:off -v minimal
+      - name: Build Release
+        run: dotnet build Lokad.Tokenizers.slnx -c Release --no-restore --tl:off --nologo -v minimal
+      - name: Test offline fixtures
+        run: dotnet test Lokad.Tokenizers.slnx -c Release --no-build --tl:off --nologo -v minimal --logger trx --results-directory artifacts/test-results
+      - name: Install Python oracle
+        run: python -m pip install -r test/python/requirements.txt
+      - name: Qualify pinned Gemma tokenization
+        run: ./eng/test-gemma.ps1 -Python python -Download -SkipBuild
+      - name: Verify independent package consumer
+        run: ./tools/PackageSmokeTest/verify-package.ps1
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            artifacts/test-results/
+            artifacts/gemma/
+          if-no-files-found: ignore
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: artifacts/nuget/
+          if-no-files-found: error

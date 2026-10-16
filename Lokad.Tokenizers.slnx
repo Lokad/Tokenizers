@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/Lokad.Tokenizers.csproj" />
+  <Project Path="test/Lokad.Tokenizers.Tests.csproj" />
+  <Project Path="tools/GemmaConformance/GemmaConformance.csproj" />
+</Solution>

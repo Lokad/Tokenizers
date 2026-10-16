@@ -8,3 +8,7 @@ _Resharper*
 .vs/
 csx
 Thumbs.db
+/PLAN.md
+/models/
+__pycache__/
+.pytest_cache/

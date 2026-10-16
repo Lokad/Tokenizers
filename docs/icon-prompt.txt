@@ -1,0 +1,5 @@
+Generated with the built-in image_gen tool on 2026-10-16, then resized to
+512 x 512 for NuGet. Final asset: ../icon.png (opaque PNG).
+
+Prompt:
+Use case: logo-brand. Asset type: square NuGet package icon for Lokad.Tokenizers, a text tokenization library. Create one polished 512 by 512 bitmap icon. Rounded-square deep indigo enamel tile, subtle dimensional lighting. Center a thick softly beveled silver hexagonal frame, matching the visual quality of Lokad's neighboring language-tool package icons. Inside the frame, show a clear tokenizer motif: three small ivory horizontal text strokes at the upper left breaking into an orderly row of separated small cyan and violet rounded token tiles toward the lower right, with a simple thin dividing cut between the whole text and its tokens. Strong, simple silhouette readable at 48px. Balanced generous padding, elegant restrained metallic depth, crisp edges, no tiny details. No letters, words, brand name, numbers, caption, watermark, or extra panels. Opaque background, square image.

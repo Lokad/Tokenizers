@@ -1,44 +1,37 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TargetFrameworks>net6.0;net8.0;net10.0</TargetFrameworks>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Title>Lokad Tokenizers</Title>
+    <PackageId>Lokad.Tokenizers</PackageId>
+    <Title>Lokad.Tokenizers</Title>
     <Authors>Lokad</Authors>
     <Company>Lokad</Company>
-    <Description>Lokad.Tokenizers is a C#/.NET library that provides tokenization functionalities similar to the `rust-tokenizers` library. It is designed to work with various tokenization models, including the `XLMRobertaTokenizer` model used for `multilingual-e5-large` (text embedding).</Description>
-    <Copyright>Copyright © Lokad 2020 - 2024</Copyright>
+    <Description>Managed XLM-R and Gemma tokenizers for text embedding models on .NET.</Description>
+    <Version>0.2.0</Version>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>See CHANGELOG.md for release details.</PackageReleaseNotes>
+    <PackageTags>tokenization;nlp;embedding;gemma;sentencepiece;xlm-roberta</PackageTags>
     <PackageProjectUrl>https://github.com/Lokad/Tokenizers</PackageProjectUrl>
-    <PackageIcon>lokad.png</PackageIcon>
-    <PackageReadmeFile>ReadMe.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/Lokad/Tokenizers</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
-	<AssemblyVersion>0.1.1</AssemblyVersion>
-	<FileVersion>0.1.1</FileVersion>
-	<PackageVersion>0.1.1</PackageVersion>
-	<Version>0.1.1</Version>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>portable</DebugType>
+    <ContinuousIntegrationBuild Condition="'$(Configuration)' == 'Release'">true</ContinuousIntegrationBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageOutputPath>../artifacts/nuget/</PackageOutputPath>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
-
   <ItemGroup>
-    <None Include="..\LICENSE.txt">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-    <None Include="..\lokad.png">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-    <None Include="..\ReadMe.md">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
+    <None Include="../LICENSE.txt;../README.md;../CHANGELOG.md;../icon.png" Pack="true" PackagePath="/" Visible="false" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Google.Protobuf" Version="3.25.3" />
-  </ItemGroup>
-
+  <Target Name="EnforceReleasePackageConfiguration" BeforeTargets="GenerateNuspec"
+          Condition="'$(Configuration)' != 'Release' and '$(AllowNonReleasePackage)' != 'true'">
+    <Error Text="NuGet packages must be produced with -c Release. Pass /p:AllowNonReleasePackage=true only for troubleshooting." />
+  </Target>
 </Project>

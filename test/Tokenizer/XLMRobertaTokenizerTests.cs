@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,7 +17,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test1()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "…";
 
@@ -45,7 +45,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test2()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "This is a sample sentence to be tokénized";
 
@@ -86,7 +86,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test2_1()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "tokénized";
 
@@ -120,7 +120,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test3()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "Wondering how this will get tokenized 🤔 ?";
 
@@ -163,7 +163,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test3_1()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "hi 🤔";
 
@@ -197,7 +197,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test3_2()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = " 🤔 ?";
 
@@ -231,7 +231,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test4()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "İs th!s 𩸽 Ϻ Šœ Ugljšić dấu nặng";
 
@@ -278,7 +278,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test4_1()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "İs th!s";
 
@@ -313,7 +313,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test5()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "   İs th!s    𩸽 Ϻ Šœ   Ugljšić  dấu nặng     ";
 
@@ -374,7 +374,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test6()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = " � İs th!s �� 𩸽 Ϻ Šœ   Ugljšić  dấu nặng     ";
 
@@ -432,7 +432,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test_E5_Small_Input_Texts_HuggingFace_Default_Example_Should_Pass()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var input_texts = new List<string> {
             "query: how much protein should a female eat",
@@ -456,7 +456,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test_E5_Small_Input_Texts_LLM_Example1_Should_Pass()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var input_texts = new List<string> {
             "query: Wie viel Protein sollte eine Frau essen?",
@@ -482,7 +482,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test_E5_Small_Input_Texts_LLM_French_Examples_Should_Pass()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var input_texts = new List<string> {
             "query: Où est l'arrêt de bus le plus proche ?",
@@ -509,7 +509,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test_E5_Small_Input_Texts_LLM_German_Examples_Should_Pass()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var input_texts = new List<string> {
             "query: Wo ist die nächste Bushaltestelle?",
@@ -536,7 +536,7 @@ public class XLMRobertaTokenizerTests
     public async Task Test_E5_Small_Input_Texts_LLM_Spanish_Examples_Should_Pass()
     {
         // Given
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var input_texts = new List<string> {
             "query: ¿Dónde está la parada de autobús más cercana?",
@@ -562,7 +562,7 @@ public class XLMRobertaTokenizerTests
     [Fact]
     public async Task TestTruncateMaxLen()
     {
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "Wondering how this will get tokenized 🤔 ?";
 
@@ -595,7 +595,7 @@ public class XLMRobertaTokenizerTests
     [Fact]
     public async Task TestSpecialChar()
     {
-        var vocab_path = TestUtils.DownloadFileToCache("https://cdn.huggingface.co/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model");
+        var vocab_path = TestUtils.XlmRobertaFixture();
         var xlm_roberta_tokenizer = new XLMRobertaTokenizer(vocab_path, false);
         var original_string = "´";
 
