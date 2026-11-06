@@ -2,7 +2,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Lokad.Tokenizers.Tokenizer;
 
-if (args.Length != 3) throw new ArgumentException("Usage: GemmaConformance tokenizer.json reference.json actual.json");
+if (args.Length > 0 && args[0] == "--xlm") { XlmConformance.Run(args[1..]); return; }
+if (args.Length != 3) throw new ArgumentException("Usage: GemmaConformance [--xlm] tokenizer reference.json actual.json");
 var tokenizer = new GemmaTokenizer(args[0]);
 using var reference = JsonDocument.Parse(File.ReadAllBytes(args[1]));
 JsonElement root = reference.RootElement;

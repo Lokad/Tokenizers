@@ -67,8 +67,10 @@ def generate(asset, output):
 def verify(reference, actual_path):
     expected = json.loads(reference.read_text(encoding="utf-8"))
     actual = json.loads(actual_path.read_text(encoding="utf-8"))
-    assert expected["tokenizerSha256"] == actual["tokenizerSha256"] == ASSET_SHA256
-    assert actual["referenceSha256"] == sha256(reference), "Changed oracle manifest"
+    if expected["tokenizerSha256"] != ASSET_SHA256 or actual["tokenizerSha256"] != ASSET_SHA256:
+        raise ValueError("Changed tokenizer asset")
+    if actual["referenceSha256"] != sha256(reference):
+        raise ValueError("Changed oracle manifest")
     for section, keys in (("cases", ("id", "ids", "rawIds")),
                           ("batches", ("id", "batchSize", "sequenceLength", "tokenCounts", "inputIds", "attentionMask"))):
         if len(actual[section]) != len(expected[section]):

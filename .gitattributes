@@ -1,0 +1,2 @@
+# Fixture checksums must describe the same bytes on every platform.
+/test/Fixture/*.json text eol=lf

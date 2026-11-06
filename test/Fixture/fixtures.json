@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "file": "xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model",
+    "repository": "FacebookAI/xlm-roberta-large-finetuned-conll03-english",
+    "revision": "18f95e9924f3f452df09cc90945073906ef18f1e",
+    "remoteFile": "sentencepiece.bpe.model",
+    "verified": "2026-11-06"
+  },
+  "files": [
+    {
+      "path": "xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model",
+      "size": 5069051,
+      "sha256": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865"
+    },
+    {
+      "path": "xlmr-cases.json",
+      "size": 14680,
+      "sha256": "f594b70824d097463da041590db7bac4084a2a6ff78f05f08bdd37fbc3c87136"
+    },
+    {
+      "path": "e5-small-input-texts-tokenized-hf-default-example.json",
+      "size": 1268,
+      "sha256": "236adb8f0f5268ad1dfb113143ae701c712a7dbab817bcd61be4e5f884d0bb6c"
+    },
+    {
+      "path": "e5-small-input-texts-tokenized-llm-example1.json",
+      "size": 1844,
+      "sha256": "d6c6c58be601fd5b3bb7dd665064a3a6e872a1bc085d125459ce5c6663270be3"
+    },
+    {
+      "path": "e5-small-input-texts-tokenized-llm-french-examples.json",
+      "size": 720,
+      "sha256": "247c5b8dff598c198a0280c4441f598f14df4bac5925b9f24abad8f19195e9d5"
+    },
+    {
+      "path": "e5-small-input-texts-tokenized-llm-german-examples.json",
+      "size": 731,
+      "sha256": "dd63210129c749e52ebccd833190ac7e3cfa090f6cdc1affd8e1861502fbd9dc"
+    },
+    {
+      "path": "e5-small-input-texts-tokenized-llm-spanish-examples.json",
+      "size": 733,
+      "sha256": "223c7666720f1e82aa5102c8eedeafe8aa58f0ca3640263a690f93af48290cd9"
+    }
+  ]
+}
