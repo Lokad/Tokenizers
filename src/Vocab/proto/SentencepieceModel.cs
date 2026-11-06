@@ -99,7 +99,7 @@ namespace Lokad.Tokenizers.Vocab {
     private static readonly pb::MessageParser<TrainerSpec> _parser = new pb::MessageParser<TrainerSpec>(() => new TrainerSpec());
     private pb::UnknownFieldSet _unknownFields;
     private pb::ExtensionSet<TrainerSpec> _extensions;
-    private pb::ExtensionSet<TrainerSpec> _Extensions { get { return _extensions; } }
+    private pb::ExtensionSet<TrainerSpec>  _Extensions { get { return _extensions; } }
     private int _hasBits0;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -185,7 +185,7 @@ namespace Lokad.Tokenizers.Vocab {
         = pb::FieldCodec.ForString(10);
     private readonly pbc::RepeatedField<string> input_ = new pbc::RepeatedField<string>();
     /// <summary>
-    ////////////////////////////////////////////////////////////////////
+    ///&#x2F;////////////////////////////////////////////////////////////////
     /// General parameters
     ///
     /// Input corpus files.
@@ -372,7 +372,7 @@ namespace Lokad.Tokenizers.Vocab {
 
     private float characterCoverage_;
     /// <summary>
-    ////////////////////////////////////////////////////////////////////
+    ///&#x2F;////////////////////////////////////////////////////////////////
     /// Training parameters.
     ///
     /// Uses characters which cover the corpus with the ratio of `chars_coverage`.
@@ -693,7 +693,7 @@ namespace Lokad.Tokenizers.Vocab {
 
     private int maxSentencepieceLength_;
     /// <summary>
-    ////////////////////////////////////////////////////////////////////
+    ///&#x2F;////////////////////////////////////////////////////////////////
     /// SentencePiece parameters which control the shapes of sentence piece.
     ///
     /// Maximum length of sentencepiece.
@@ -889,7 +889,7 @@ namespace Lokad.Tokenizers.Vocab {
         = pb::FieldCodec.ForString(242);
     private readonly pbc::RepeatedField<string> controlSymbols_ = new pbc::RepeatedField<string>();
     /// <summary>
-    ////////////////////////////////////////////////////////////////////
+    ///&#x2F;////////////////////////////////////////////////////////////////
     /// Vocabulary management
     ///
     /// Defines control symbols used as an indicator to
@@ -1089,7 +1089,7 @@ namespace Lokad.Tokenizers.Vocab {
 
     private int unkId_;
     /// <summary>
-    ////////////////////////////////////////////////////////////////////
+    ///&#x2F;////////////////////////////////////////////////////////////////
     /// Reserved special meta tokens.
     /// * -1 is not used.
     /// * unk_id must not be -1.
@@ -2073,7 +2073,11 @@ namespace Lokad.Tokenizers.Vocab {
     #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
@@ -2250,7 +2254,11 @@ namespace Lokad.Tokenizers.Vocab {
     void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, ref input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
@@ -2487,7 +2495,7 @@ namespace Lokad.Tokenizers.Vocab {
     private static readonly pb::MessageParser<NormalizerSpec> _parser = new pb::MessageParser<NormalizerSpec>(() => new NormalizerSpec());
     private pb::UnknownFieldSet _unknownFields;
     private pb::ExtensionSet<NormalizerSpec> _extensions;
-    private pb::ExtensionSet<NormalizerSpec> _Extensions { get { return _extensions; } }
+    private pb::ExtensionSet<NormalizerSpec>  _Extensions { get { return _extensions; } }
     private int _hasBits0;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -2912,7 +2920,11 @@ namespace Lokad.Tokenizers.Vocab {
     #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
@@ -2953,7 +2965,11 @@ namespace Lokad.Tokenizers.Vocab {
     void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, ref input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
@@ -3024,7 +3040,7 @@ namespace Lokad.Tokenizers.Vocab {
     private static readonly pb::MessageParser<SelfTestData> _parser = new pb::MessageParser<SelfTestData>(() => new SelfTestData());
     private pb::UnknownFieldSet _unknownFields;
     private pb::ExtensionSet<SelfTestData> _extensions;
-    private pb::ExtensionSet<SelfTestData> _Extensions { get { return _extensions; } }
+    private pb::ExtensionSet<SelfTestData>  _Extensions { get { return _extensions; } }
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pb::MessageParser<SelfTestData> Parser { get { return _parser; } }
@@ -3179,7 +3195,11 @@ namespace Lokad.Tokenizers.Vocab {
     #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
@@ -3200,7 +3220,11 @@ namespace Lokad.Tokenizers.Vocab {
     void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, ref input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
@@ -3455,7 +3479,11 @@ namespace Lokad.Tokenizers.Vocab {
         #else
           uint tag;
           while ((tag = input.ReadTag()) != 0) {
-            switch(tag) {
+          if ((tag & 7) == 4) {
+            // Abort on any end group tag.
+            return;
+          }
+          switch(tag) {
               default:
                 _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
                 break;
@@ -3478,7 +3506,11 @@ namespace Lokad.Tokenizers.Vocab {
         void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
           uint tag;
           while ((tag = input.ReadTag()) != 0) {
-            switch(tag) {
+          if ((tag & 7) == 4) {
+            // Abort on any end group tag.
+            return;
+          }
+          switch(tag) {
               default:
                 _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
                 break;
@@ -3517,7 +3549,7 @@ namespace Lokad.Tokenizers.Vocab {
     private static readonly pb::MessageParser<ModelProto> _parser = new pb::MessageParser<ModelProto>(() => new ModelProto());
     private pb::UnknownFieldSet _unknownFields;
     private pb::ExtensionSet<ModelProto> _extensions;
-    private pb::ExtensionSet<ModelProto> _Extensions { get { return _extensions; } }
+    private pb::ExtensionSet<ModelProto>  _Extensions { get { return _extensions; } }
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pb::MessageParser<ModelProto> Parser { get { return _parser; } }
@@ -3815,7 +3847,11 @@ namespace Lokad.Tokenizers.Vocab {
     #else
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
@@ -3864,7 +3900,11 @@ namespace Lokad.Tokenizers.Vocab {
     void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
       uint tag;
       while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
           default:
             if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, ref input)) {
               _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
@@ -3943,7 +3983,7 @@ namespace Lokad.Tokenizers.Vocab {
         private static readonly pb::MessageParser<SentencePiece> _parser = new pb::MessageParser<SentencePiece>(() => new SentencePiece());
         private pb::UnknownFieldSet _unknownFields;
         private pb::ExtensionSet<SentencePiece> _extensions;
-        private pb::ExtensionSet<SentencePiece> _Extensions { get { return _extensions; } }
+        private pb::ExtensionSet<SentencePiece>  _Extensions { get { return _extensions; } }
         private int _hasBits0;
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
         [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -4216,7 +4256,11 @@ namespace Lokad.Tokenizers.Vocab {
         #else
           uint tag;
           while ((tag = input.ReadTag()) != 0) {
-            switch(tag) {
+          if ((tag & 7) == 4) {
+            // Abort on any end group tag.
+            return;
+          }
+          switch(tag) {
               default:
                 if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, input)) {
                   _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
@@ -4245,7 +4289,11 @@ namespace Lokad.Tokenizers.Vocab {
         void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
           uint tag;
           while ((tag = input.ReadTag()) != 0) {
-            switch(tag) {
+          if ((tag & 7) == 4) {
+            // Abort on any end group tag.
+            return;
+          }
+          switch(tag) {
               default:
                 if (!pb::ExtensionSet.TryMergeFieldFrom(ref _extensions, ref input)) {
                   _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);

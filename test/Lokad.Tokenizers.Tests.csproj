@@ -5,8 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.analyzers" PrivateAssets="All" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All" />
     <ProjectReference Include="../src/Lokad.Tokenizers.csproj" />
     <None Update="Fixture/**/*" CopyToOutputDirectory="PreserveNewest" />
