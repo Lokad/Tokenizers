@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Reflection.Metadata;
 using System.Text.Json;
 using Lokad.Tokenizers.Tokenizer;
+using Lokad.Tokenizers.Vocab;
 
 if (args.Length != 5) throw new ArgumentException("Expected version, tokenizer, symbol package, commit, and XLM-R fixture");
 string version = args[0], commit = args[3];
@@ -21,6 +22,32 @@ var legacy = new XLMRobertaTokenizer(args[4], false);
 var legacyIds = legacy.Encode("…", null, 128, TruncationStrategy.LongestFirst, 0).TokenIds;
 if (!legacyIds.SequenceEqual(new long[] { 0, 153, 2 }))
     throw new InvalidOperationException("Package XLM-R encoding differs");
+ITokenizer<XlmRobertaVocab> legacyContract = legacy;
+if (!legacyContract.Tokenize("é<mask>🧪").Contains("<mask>"))
+    throw new InvalidOperationException("Package Unicode special-token matching differs");
+var hello = legacyContract.Encode("Hello, world!", null, 128, TruncationStrategy.LongestFirst, 0);
+if (legacyContract.Decode(hello.TokenIds, true, false) != "Hello, world!")
+    throw new InvalidOperationException("Package XLM-R decoding differs");
+IReadOnlyDictionary<string,long> vocabularyView = legacy.Vocab.Values;
+if (vocabularyView["<pad>"] != 1) throw new InvalidOperationException("Package vocabulary contract differs");
+var cloneSource = new Token("🧪abc");
+var clone = cloneSource.Clone();
+clone.Offset.Begin = 99;
+if (cloneSource.Offset.Begin != 0 || cloneSource.ReferenceOffsets.Count != 4)
+    throw new InvalidOperationException("Package token ownership/scalar mapping differs");
+string flatFile = Path.GetTempFileName();
+try
+{
+    File.WriteAllText(flatFile,"hello\nworld\n[UNK]\n");
+    ITokenizer<BaseVocab> basic = new BaseTokenizer<BaseVocab>(flatFile,false,false);
+    if (basic.Decode(basic.Encode("hello world",null,2,TruncationStrategy.LongestFirst,0).TokenIds,true,false) != "hello world")
+        throw new InvalidOperationException("Package generic tokenizer contract differs");
+    basic.Vocab.AddExtraIds(1);
+    long extra = basic.Vocab.TokenToId("<extra_id_0>");
+    basic.Vocab.AddExtraIds(1);
+    if (basic.Vocab.TokenToId("<extra_id_0>") != extra) throw new InvalidOperationException("Package vocabulary additions changed an ID");
+}
+finally { File.Delete(flatFile); }
 
 using var symbols = ZipFile.OpenRead(args[2]);
 using var pdbStream = new MemoryStream();
@@ -43,4 +70,4 @@ foreach (var handle in reader.CustomDebugInformation)
     catch (JsonException) { }
 }
 if (!sourceLink) throw new InvalidDataException("Portable PDB has no matching GitHub SourceLink mapping");
-Console.WriteLine("PASS isolated package consumer, XLM-R/Gemma APIs, and SourceLink: " + version);
+Console.WriteLine($"PASS isolated package consumer, XLM-R/Gemma APIs, and SourceLink: {version} on .NET {Environment.Version}");
