@@ -16,6 +16,8 @@ public sealed class GemmaTokenizer
     readonly Dictionary<(int Left, int Right), Merge> merges = new();
     readonly List<(string Text, int Id)> added = new();
     readonly int[] bytes = new int[256];
+    readonly LiteralTokenMatcher addedTokens;
+    readonly int maximumTokenBytes;
 
     /// <summary>SHA-256 of the exact tokenizer JSON loaded by this instance.</summary>
     public string TokenizerSha256 { get; }
@@ -57,6 +59,7 @@ public sealed class GemmaTokenizer
         Require(vocabulary.GetValueOrDefault("<pad>", -1) == 0 && vocabulary.GetValueOrDefault("<eos>", -1) == 1 &&
             vocabulary.GetValueOrDefault("<bos>", -1) == 2 && vocabulary.GetValueOrDefault("<unk>", -1) == 3,
             "PAD/EOS/BOS/UNK IDs");
+        maximumTokenBytes = vocabulary.Keys.Max(token => Encoding.UTF8.GetByteCount(token));
         for (int value = 0; value < bytes.Length; value++)
         {
             if (!vocabulary.TryGetValue("<0x" + value.ToString("X2", CultureInfo.InvariantCulture) + ">", out bytes[value]))
@@ -82,6 +85,7 @@ public sealed class GemmaTokenizer
                 throw new InvalidDataException("Added token differs from vocabulary");
             added.Add((text, id));
         }
+        addedTokens = new LiteralTokenMatcher(added.Select(token => (token.Text, (long)token.Id)));
         JsonElement post = root.GetProperty("post_processor"), single = post.GetProperty("single");
         Require(post.GetProperty("type").GetString() == "TemplateProcessing" && single.GetArrayLength() == 3 &&
             TemplateToken(single[0], "SpecialToken", "<bos>") && TemplateToken(single[1], "Sequence", "A") &&
@@ -111,33 +115,41 @@ public sealed class GemmaTokenizer
     public long[] Encode(string text) => Encode(text, true);
 
     /// <summary>Encode text, optionally adding BOS/EOS. Literal added tokens are always recognized.</summary>
-    public long[] Encode(string text, bool addSpecialTokens)
+    public long[] Encode(string text, bool addSpecialTokens) => EncodeCore(text, addSpecialTokens, int.MaxValue);
+
+    private long[] EncodeCore(string text, bool addSpecialTokens, int maximumTokens)
     {
         ArgumentNullException.ThrowIfNull(text);
         var result = new List<long>();
         if (addSpecialTokens) result.Add(2);
-        int offset = 0;
-        while (offset < text.Length)
+        int contentLimit = maximumTokens - (addSpecialTokens ? 1 : 0);
+        int start = 0, position = 0;
+        long ordinaryBytes = 0;
+        while (position < text.Length)
         {
-            int next = text.Length;
-            (string Text, int Id) selected = ("", 0);
-            foreach (var token in added)
+            if (addedTokens.TryMatch(text.AsSpan(position), out var match))
             {
-                int position = text.IndexOf(token.Text, offset, StringComparison.Ordinal);
-                if (position >= 0 && (position < next || position == next && token.Text.Length > selected.Text.Length))
-                {
-                    next = position;
-                    selected = token;
-                }
+                EncodeOrdinary(text.AsSpan(start, position - start), result, contentLimit, ordinaryBytes);
+                if (result.Count >= contentLimit) ThrowTokenLimit();
+                result.Add(match.Id);
+                position += match.Text.Length;
+                start = position;
+                ordinaryBytes = 0;
             }
-            EncodeOrdinary(text.AsSpan(offset, next - offset), result);
-            if (next == text.Length) break;
-            result.Add(selected.Id);
-            offset = next + selected.Text.Length;
+            else
+            {
+                if (Rune.DecodeFromUtf16(text.AsSpan(position), out Rune rune, out int consumed) != OperationStatus.Done)
+                    throw new ArgumentException("Text contains invalid UTF-16", nameof(text));
+                ordinaryBytes += rune.Value == ' ' ? 3 : rune.Utf8SequenceLength;
+                position += consumed;
+            }
         }
+        EncodeOrdinary(text.AsSpan(start), result, contentLimit, ordinaryBytes);
         if (addSpecialTokens) result.Add(1);
         return result.ToArray();
     }
+
+    private static void ThrowTokenLimit() => throw new ArgumentException("Input exceeds the token limit", "maximumTokens");
 
     /// <summary>Encode a nonempty batch, rejecting overflow and right-padding to the longest row.</summary>
     public GemmaTokenizedBatch EncodeBatch(IReadOnlyList<string> texts, int maximumTokens)
@@ -150,10 +162,12 @@ public sealed class GemmaTokenizer
         int width = 0;
         for (int i = 0; i < rows.Length; i++)
         {
-            rows[i] = Encode(texts[i]);
+            try { rows[i] = EncodeCore(texts[i], true, maximumTokens); }
+            catch (ArgumentException error) when (error.ParamName == "maximumTokens")
+            {
+                throw new ArgumentException($"Input {i} exceeds the token limit {maximumTokens}", nameof(texts), error);
+            }
             counts[i] = rows[i].Length;
-            if (counts[i] > maximumTokens)
-                throw new ArgumentException($"Input {i} requires {counts[i]} tokens; limit is {maximumTokens}", nameof(texts));
             width = Math.Max(width, counts[i]);
         }
         var inputIds = new long[checked(rows.Length * width)];
@@ -166,8 +180,11 @@ public sealed class GemmaTokenizer
         return new GemmaTokenizedBatch(inputIds, mask, counts, rows.Length, width);
     }
 
-    void EncodeOrdinary(ReadOnlySpan<char> text, List<long> result)
+    void EncodeOrdinary(ReadOnlySpan<char> text, List<long> result, int contentLimit, long normalizedBytes)
     {
+        // Every final piece represents at most maximumTokenBytes normalized bytes.
+        // Unlike a character-count estimate, this lower bound remains valid after arbitrary BPE merges.
+        if (normalizedBytes > (long)maximumTokenBytes * (contentLimit - result.Count)) ThrowTokenLimit();
         var initial = new List<int>();
         Span<byte> encoded = stackalloc byte[4];
         while (!text.IsEmpty)
@@ -213,7 +230,11 @@ public sealed class GemmaTokenizer
             Enqueue(a.Previous);
             Enqueue(candidate.Left);
         }
-        for (int i = 0; i >= 0; i = symbols[i].Next) result.Add(symbols[i].Id);
+        for (int i = 0; i >= 0; i = symbols[i].Next)
+        {
+            if (result.Count >= contentLimit) ThrowTokenLimit();
+            result.Add(symbols[i].Id);
+        }
     }
 
     readonly record struct Merge(int Rank, int Id);

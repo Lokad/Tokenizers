@@ -133,4 +133,39 @@ public sealed class GemmaTokenizerTests
         }
         finally { File.Delete(path); }
     }
+
+    [Fact]
+    public void TokenLimitsAllowMergesAndRejectLongInputsWithoutBpeAllocation()
+    {
+        var tokenizer = Create();
+        Assert.Equal(new long[] { 2,24,1 }, tokenizer.EncodeBatch(new[] { "aaa" }, 3).InputIds);
+        Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(new[] { "aaaa" }, 3));
+        string text = new('a', 200_000);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(new[] { text }, 2));
+        long allocation = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocation < 200_000, $"Unexpected allocation before rejecting the token limit: {allocation}");
+    }
+
+    [Fact]
+    public void AddedTokenMatchingIsLongestAndBypassesSpaceNormalization()
+    {
+        var json = JsonNode.Parse(FixtureJson())!;
+        json["model"]!["vocab"]!["<mask>long"] = 400;
+        json["model"]!["vocab"]!["two words"] = 401;
+        foreach (var (content,id) in new[] { ("<mask>long",400), ("two words",401) })
+            json["added_tokens"]!.AsArray().Add(new JsonObject {
+                ["content"] = content, ["id"] = id, ["single_word"] = false, ["lstrip"] = false,
+                ["rstrip"] = false, ["normalized"] = false, ["special"] = true
+            });
+        string path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path,json.ToJsonString());
+            var tokenizer = new GemmaTokenizer(path);
+            Assert.Equal(new long[] { 400,4,401 }, tokenizer.Encode("<mask>long<mask>two words", false));
+            Assert.Equal(new long[] { 2,401,1 }, tokenizer.EncodeBatch(new[] { "two words" },3).InputIds);
+        }
+        finally { File.Delete(path); }
+    }
 }
