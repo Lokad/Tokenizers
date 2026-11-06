@@ -5,11 +5,11 @@ namespace Lokad.Tokenizers.Vocab.Tests;
 
 public class BaseVocabTests
 {
-    [Fact(Skip = "DIsable temporary - object initialization logic is wrong")]
+    [Fact]
     public void TestCreateObject()
     {
         // Given
-        var values = new Dictionary<string, long>();
+        var values = new Dictionary<string, long> { ["[UNK]"] = 0 };
         var specialTokenMap = new SpecialTokenMap() { UnkToken = "[UNK]" };
 
         // When
@@ -18,7 +18,7 @@ public class BaseVocabTests
         // Then
         Assert.Equal("[UNK]", baseVocab.GetUnknownValue());
         Assert.Equal(values, baseVocab.Values);
-        Assert.Equal(new Dictionary<string, long>(), baseVocab.SpecialValues);
+        Assert.Equal(new Dictionary<string, long> { ["[UNK]"] = 0 }, baseVocab.SpecialValues);
     }
 
     [Fact]

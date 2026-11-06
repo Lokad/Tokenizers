@@ -1,112 +1,122 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Lokad.Tokenizers.Exceptions;
 
 namespace Lokad.Tokenizers.Vocab;
 
-/// <summary>
-/// Provides helper methods for working with vocabularies.
-/// </summary>
+/// <summary>Local vocabulary and special-token mapping readers.</summary>
 public static class VocabHelper
 {
-    /// <summary>
-    /// Swaps the keys and values in the given dictionary.
-    /// </summary>
-    /// <typeparam name="TKey">The type of the keys in the dictionary.</typeparam>
-    /// <typeparam name="TValue">The type of the values in the dictionary.</typeparam>
-    /// <param name="dictionary">The dictionary to swap keys and values for.</param>
-    /// <returns>A new dictionary with keys and values swapped.</returns>
     public static Dictionary<TValue, TKey> SwapKeyValue<TKey, TValue>(Dictionary<TKey, TValue> dictionary)
-    {
-        return dictionary.ToDictionary((i) => i.Value, (i) => i.Key);
-    }
+        where TKey : notnull where TValue : notnull => dictionary.ToDictionary(p => p.Value, p => p.Key);
 
-    /// <summary>
-    /// Reads a flat file and returns a dictionary mapping each line to its index.
-    /// </summary>
-    /// <param name="path">The path to the flat file.</param>
-    /// <returns>A dictionary mapping each line to its index.</returns>
-    /// <exception cref="FileNotFoundTokenizerException">Thrown when the file is not found.</exception>
     public static Dictionary<string, long> ReadFlatFile(string path)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundTokenizerException($"{path} vocabulary file not found");
-
-        var lines = File.ReadAllLines(path);
-        return lines.Select((line, index) => new { line, index })
-                    .ToDictionary(x => x.line.Trim(), x => (long)x.index);
+        CheckFile(path);
+        return File.ReadAllLines(path).Select((text, id) => (text, id))
+            .ToDictionary(p => p.text, p => (long)p.id, StringComparer.Ordinal);
     }
 
-    /// <summary>
-    /// Reads a JSON file and returns a dictionary.
-    /// </summary>
-    /// <param name="path">The path to the JSON file.</param>
-    /// <returns>A dictionary deserialized from the JSON file.</returns>
-    /// <exception cref="FileNotFoundTokenizerException">Thrown when the file is not found.</exception>
     public static Dictionary<string, long> ReadJsonFile(string path)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundTokenizerException($"{path} vocabulary file not found");
-
-        var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<Dictionary<string, long>>(json);
+        CheckFile(path);
+        return JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(path))
+            ?? throw new InvalidDataException("Vocabulary JSON must be an object");
     }
 
-    /// <summary>
-    /// Opens a protobuf file and returns a <see cref="ModelProto"/> instance.
-    /// </summary>
-    /// <param name="path">The path to the protobuf file.</param>
-    /// <returns>A <see cref="ModelProto"/> instance deserialized from the protobuf file.</returns>
-    /// <exception cref="FileNotFoundTokenizerException">Thrown when the file is not found.</exception>
     public static ModelProto OpenProtobufFile(string path)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundTokenizerException($"{path} vocabulary file not found");
-
+        CheckFile(path);
         using var stream = File.OpenRead(path);
-
         return ModelProto.Parser.ParseFrom(stream);
     }
 
-    /// <summary>
-    /// Reads a protobuf file and returns a dictionary mapping pieces to their indices.
-    /// </summary>
-    /// <param name="path">The path to the protobuf file.</param>
-    /// <returns>A dictionary mapping pieces to their indices.</returns>
-    public static Dictionary<string, long> ReadProtobufFile(string path)
+    public static Dictionary<string, long> ReadProtobufFile(string path) =>
+        OpenProtobufFile(path).Pieces.Select((piece, id) => (piece, id))
+            .ToDictionary(p => p.piece.Piece, p => (long)p.id, StringComparer.Ordinal);
+
+    /// <summary>Read snake_case mapping names, or their legacy PascalCase equivalents.</summary>
+    /// <remarks>Token values can be strings or content objects with literal matching flags.</remarks>
+    public static SpecialTokenMap ReadSpecialTokenMappingFile(string path) => ReadSpecialTokenMappingFile(path, "[UNK]");
+
+    public static SpecialTokenMap ReadSpecialTokenMappingFile(string path, string defaultUnknownToken)
     {
-        var proto = OpenProtobufFile(path);
-        return proto.Pieces
-                    .Select((piece, idx) => new { piece, idx })
-                    .ToDictionary(x => x.piece.Piece, x => (long)x.idx);
+        CheckFile(path);
+        ArgumentException.ThrowIfNullOrEmpty(defaultUnknownToken);
+        using var document = JsonDocument.Parse(File.ReadAllBytes(path));
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException("Special-token mapping must be a JSON object");
+        var result = new SpecialTokenMap { UnkToken = defaultUnknownToken };
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            string name = property.Name switch
+            {
+                "UnkToken" => "unk_token", "PadToken" => "pad_token", "BosToken" => "bos_token",
+                "SepToken" => "sep_token", "ClsToken" => "cls_token", "EosToken" => "eos_token",
+                "MaskToken" => "mask_token", "AdditionalSpecialTokens" => "additional_special_tokens",
+                _ => property.Name
+            };
+            if (!seen.Add(name)) throw new InvalidDataException("Duplicate special-token field: " + name);
+            if (name == "additional_special_tokens")
+            {
+                if (property.Value.ValueKind != JsonValueKind.Array)
+                    throw new InvalidDataException("additional_special_tokens must be an array");
+                foreach (JsonElement entry in property.Value.EnumerateArray())
+                    if (!result.AdditionalSpecialTokens.Add(ReadToken(entry)
+                        ?? throw new InvalidDataException("Additional tokens must not be null")))
+                        throw new InvalidDataException("Duplicate additional special token");
+                continue;
+            }
+            string? token = ReadToken(property.Value);
+            switch (name)
+            {
+                case "unk_token": result.UnkToken = token ?? throw new InvalidDataException("Unknown token must not be null"); break;
+                case "pad_token": result.PadToken = token; break;
+                case "bos_token": result.BosToken = token; break;
+                case "sep_token": result.SepToken = token; break;
+                case "cls_token": result.ClsToken = token; break;
+                case "eos_token": result.EosToken = token; break;
+                case "mask_token": result.MaskToken = token; break;
+                default: throw new InvalidDataException("Unknown special-token field: " + property.Name);
+            }
+        }
+        return result;
     }
 
-    /// <summary>
-    /// Reads a special token mapping file and returns a <see cref="SpecialTokenMap"/> instance.
-    /// </summary>
-    /// <param name="path">The path to the special token mapping file.</param>
-    /// <returns>A <see cref="SpecialTokenMap"/> instance deserialized from the file.</returns>
-    /// <exception cref="FileNotFoundTokenizerException">Thrown when the file is not found.</exception>
-    public static SpecialTokenMap ReadSpecialTokenMappingFile(string path)
+    private static string? ReadToken(JsonElement element)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundTokenizerException($"{path} vocabulary file not found");
-
-        var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<SpecialTokenMap>(json);
+        if (element.ValueKind == JsonValueKind.Null) return null;
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var flag in element.EnumerateObject())
+            {
+                if (flag.Name is "content" or "__type") continue;
+                if (flag.Name is "single_word" or "lstrip" or "rstrip" or "normalized")
+                {
+                    if (flag.Value.ValueKind != JsonValueKind.False)
+                        throw new NotSupportedException("Only literal special-token matching is supported: " + flag.Name);
+                }
+                else if (flag.Name != "special" || flag.Value.ValueKind != JsonValueKind.True)
+                    throw new InvalidDataException("Unsupported token object field: " + flag.Name);
+            }
+            if (!element.TryGetProperty("content", out element))
+                throw new InvalidDataException("A token object must have content");
+        }
+        if (element.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(element.GetString()))
+            throw new InvalidDataException("A special token must be a nonempty string");
+        return element.GetString();
     }
 
-    /// <summary>
-    /// Registers a token as a special value in the provided dictionaries.
-    /// </summary>
-    /// <param name="token">The token to register.</param>
-    /// <param name="values">The dictionary of token values and their corresponding IDs.</param>
-    /// <param name="specialValues">The dictionary of special token values and their corresponding IDs.</param>
-    /// <exception cref="TokenNotFoundTokenizerException">Thrown when the token is not found in the values dictionary.</exception>
     public static void RegisterAsSpecialValue(string token, Dictionary<string, long> values, Dictionary<string, long> specialValues)
     {
-        if (!values.TryGetValue(token, out var tokenIndex))
-            throw new TokenNotFoundTokenizerException($"Unknown token {token} not found");
+        if (!values.TryGetValue(token, out long id))
+            throw new TokenNotFoundTokenizerException("Unknown token " + token + " not found");
+        specialValues[token] = id;
+    }
 
-        specialValues[token] = tokenIndex;
+    private static void CheckFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        if (!File.Exists(path)) throw new FileNotFoundTokenizerException(path + " vocabulary file not found");
     }
 }

@@ -2,6 +2,8 @@
 
 using System.Collections.Generic;
 
+/// <summary>Legacy port tables retained for API compatibility. Tokenizers use immutable character predicates.</summary>
+[Obsolete("Legacy port tables are retained for compatibility; use Unicode APIs in new code.")]
 public static class Constants
 {
     public static readonly HashSet<uint> WhitespaceChars = new HashSet<uint>(new uint[]

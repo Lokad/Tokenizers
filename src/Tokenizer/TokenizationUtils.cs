@@ -1,6 +1,4 @@
-﻿using System.Text.RegularExpressions;
 using System.Text;
-using Lokad.Tokenizers.Vocab;
 using System.Globalization;
 using Lokad.Tokenizers.Exceptions;
 using System.Runtime.CompilerServices;
@@ -11,468 +9,152 @@ namespace Lokad.Tokenizers.Tokenizer;
 
 internal static class TokenizationUtils
 {
-    /// <summary>
-    /// Substring Runes (characters)
-    /// </summary>
-    public static string SubstringRunes(string text, int start, int length)
-    {
-        var sb = new StringBuilder();
-        text.EnumerateRunes().Skip(start).Take(length).ToList().ForEach(r => sb.Append(r));
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Substring Runes (characters)
-    /// </summary>
-    public static string SubstringRunes(string text, int start)
-    {
-        var sb = new StringBuilder();
-        text.EnumerateRunes().Skip(start).ToList().ForEach(r => sb.Append(r));
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// Get String Info
-    /// </summary>
-    public static StringInfo GetStringInfo(string text)
-    {
-        return new System.Globalization.StringInfo(text);
-    }
-
-    /// <summary>
-    /// Get UTF 8 Bytes Count
-    /// </summary>
-    public static int GetUtf8BytesCount(string text)
-    {
-        return Encoding.UTF8.GetByteCount(text);
-    }
-
-    /// <summary>
-    /// Get Runes with index
-    /// </summary>
-    public static IEnumerable<(int Index, Rune Character)> CharIndicesForRunes(string str)
-    {
-        var front_offset = 0;
-        var runes = str.EnumerateRunes().ToList();
-        for (var i = 0; i < runes.Count; i++)
-        {
-            var index = front_offset;
-            yield return (index, runes[i]);
-            front_offset += runes[i].Utf8SequenceLength;
-        }
-    }
-
-    /// <summary>
-    /// NFKC decomposition
-    /// </summary>
-    public static IEnumerable<(Rune Character, int ExtraCharSize)> NFKC(string str)
-    {
-        var runes = str.EnumerateRunes().ToList();
-        for (var i = 0; i < runes.Count; i++)
-        {
-            yield return (runes[i], (runes[i].Utf8SequenceLength - runes[i].Utf16SequenceLength));
-        }
-    }
-
-    /// <summary>
-    /// Enumerate
-    /// </summary>
-    public static IEnumerable<(int Index, T Element)> Enumerate<T>(IEnumerable<T> source)
-    {
-        var index = 0;
-        foreach (var element in source)
-        {
-            yield return (index++, element);
-        }
-    }
-
-    /// <summary>
-    /// Substring by byte offset
-    /// </summary>
-    public static string SubstringByByteOffset(string s, int start)
-    {
-        var bytes = Encoding.UTF8.GetBytes(s);
-        var substringBytes = new byte[bytes.Length - start];
-        Array.Copy(bytes, start, substringBytes, 0, bytes.Length - start);
-        return Encoding.UTF8.GetString(substringBytes);
-    }
-
-    /// <summary>
-    /// Substring by byte offset
-    /// </summary>
-    public static string SubstringByByteOffset(string s, int start, int end)
-    {
-        var bytes = Encoding.UTF8.GetBytes(s);
-        if (end > bytes.Length || start > end)
-        {
-            throw new ArgumentOutOfRangeException("Invalid range");
-        }
-        var substringBytes = new byte[end - start];
-        Array.Copy(bytes, start, substringBytes, 0, end - start);
-        return Encoding.UTF8.GetString(substringBytes);
-    }
+    internal const char Metaspace = '\u2581';
 
     /// <summary>
     /// Cleans text by removing control characters and normalizing whitespace
     /// </summary>
     public static void CleanText(Token token, bool strict)
     {
-        var cleanedString = new StringBuilder(token.Text.Length);
-        var characterMapping = new List<uint>(token.Text.Length);
-
-        foreach (var (character, position) in token.Text.EnumerateRunes().Zip(token.ReferenceOffsets))
+        var text = new StringBuilder(token.Text.Length);
+        var references = TokenAlignment.References(token);
+        var mapped = new List<uint[]>();
+        int index = 0;
+        foreach (Rune scalar in token.Text.EnumerateRunes())
         {
-            if (IsControl(character, strict) || character == new Rune('\x00') || character == new Rune('\uFFFD'))
+            if (!IsControl(scalar, strict) && scalar.Value is not 0 and not 0xFFFD)
             {
-                continue;
+                text.Append(IsWhitespace(scalar) ? new Rune(' ') : scalar);
+                mapped.Add(references[index]);
             }
-
-            cleanedString.Append(IsWhitespace(character) ? ' ' : character);
-            characterMapping.Add(position);
+            index++;
         }
-
-        token.Text = cleanedString.ToString();
-        token.ReferenceOffsets = characterMapping;
-        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
+        TokenAlignment.Set(token, text.ToString(), mapped.ToArray());
     }
 
-    /// <summary>
-    /// Is Whitespace Rune ?
-    /// </summary>
-    public static bool IsWhitespace(Rune character)
-    {
-        return Constants.WhitespaceChars.Contains(Convert.ToUInt32(character.Value));
-    }
+    public static bool IsWhitespace(Rune character) => character.Value is
+        0x20 or 0xA0 or 0x1680 or >= 0x2000 and <= 0x200A or 0x202F or 0x205F or 0x3000 or 9 or 10 or 13;
 
-    /// <summary>
-    /// Is Control Rune?
-    /// </summary>
     public static bool IsControl(Rune character, bool strict)
     {
-        if (Constants.AdditionalWhitespaceChars.Select(c => new Rune(c)).Contains(character))
-        {
-            return false;
-        }
-
-        if (strict)
-        {
-            var u32Char = Convert.ToUInt32(character.Value);
-            return (u32Char <= 0x001F)
-                || (0x0080 <= u32Char && u32Char <= 0x009F)
-                || (0xE0020 <= u32Char && u32Char <= 0xE007F)
-                || (0xE000 <= u32Char && u32Char <= 0xF8FF)
-                || (0xF0000 <= u32Char && u32Char <= 0xFFFFD)
-                || (0x100000 <= u32Char && u32Char <= 0x10FFFD)
-                || (0xD800 <= u32Char && u32Char <= 0xDB7F)
-                || (0xDB80 <= u32Char && u32Char <= 0xDBFF)
-                || (0xDC00 <= u32Char && u32Char <= 0xDFFF)
-                || Constants.ControlChars.Contains(u32Char);
-        }
-        else
-        {
-            return Rune.IsControl(character);
-        }
+        int value = character.Value;
+        if (value is '\t' or '\r' or '\n') return false;
+        if (!strict) return Rune.IsControl(character);
+        return Rune.GetUnicodeCategory(character) is UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.PrivateUse;
     }
 
-    /// <summary>
-    /// Lowercase
-    /// </summary>
     public static void Lowercase(Token token)
     {
-        var lowerCasedString = new StringBuilder(token.Text.Length);
-        var characterMapping = new List<uint>(token.Text.Length);
-
-        foreach (var (character, position) in token.Text.Zip(token.ReferenceOffsets))
+        var text = new StringBuilder(token.Text.Length);
+        uint[][] references = TokenAlignment.References(token);
+        var mapped = new List<uint[]>();
+        int index = 0;
+        foreach (Rune scalar in token.Text.EnumerateRunes())
         {
-            foreach (var c in character.ToString().ToLower())
+            // Unicode default casing has one unconditional multi-scalar lowercase mapping.
+            if (scalar.Value == 0x130)
             {
-                lowerCasedString.Append(c);
-                characterMapping.Add(position);
-            }
-        }
-
-        token.Text = lowerCasedString.ToString();
-        token.ReferenceOffsets = characterMapping;
-        token.Offset = new Offset(token.ReferenceOffsets.FirstOrDefault(), token.ReferenceOffsets.LastOrDefault() + 1);
-    }
-
-    /// <summary>
-    /// NFKC decomposition
-    /// </summary>
-    public static void DecomposeNfkc(Token token)
-    {
-        var capacity = Encoding.UTF8.GetByteCount(token.Text);
-        var decomposedString = new StringBuilder(capacity);
-        var characterMapping = new List<uint>(capacity);
-        var curPosition = 0;
-        var normalizedString = token.Text.Normalize(NormalizationForm.FormKC);
-        foreach (var (character, currentExtraCharSize) in TokenizationUtils.NFKC(normalizedString))
-        {
-            var extraCharSize = 0;
-
-            //HINT: [@eslam] check if character is removed from the original text after normalization
-            if (!token.Text.EnumerateRunes().Contains(character))
-                extraCharSize -= currentExtraCharSize;
-
-            decomposedString.Append(character);
-            if (extraCharSize > 0)
-            {
-                curPosition -= extraCharSize;
-            }
-            // Assuming each character in the normalized string maps to one character in the original string
-            if (curPosition < token.ReferenceOffsets.Count)
-            {
-                characterMapping.Add(token.ReferenceOffsets[curPosition]);
+                text.Append("i\u0307");
+                mapped.Add(references[index]);
+                mapped.Add(references[index]);
             }
             else
             {
-                // Handle cases where normalization adds characters
-                characterMapping.Add(token.ReferenceOffsets.LastOrDefault());
+                text.Append(Rune.ToLowerInvariant(scalar));
+                mapped.Add(references[index]);
             }
-            if (extraCharSize < 0)
-            {
-                curPosition -= extraCharSize;
-            }
-            curPosition += 1; // Adjust based on Unicode character width if needed
+            index++;
         }
-
-        token.Text = decomposedString.ToString();//.Normalize(NormalizationForm.FormKC);
-        token.ReferenceOffsets = characterMapping;
-        token.Offset.Begin = token.ReferenceOffsets.FirstOrDefault();
-        token.Offset.End = token.ReferenceOffsets.LastOrDefault() + 1;
+        TokenAlignment.Set(token, text.ToString(), mapped.ToArray());
     }
 
-    /// <summary>
-    /// Truncates a sequence pair in place to the maximum length.
-    /// </summary>
-    /// <param name="tokenIdsWithOffsets1">First list of tokenized input ids.</param>
-    /// <param name="tokenIdsWithOffsets2">Optional second list of input ids.</param>
-    /// <param name="numTokensToRemove">Number of tokens to remove using the truncation strategy.</param>
-    /// <param name="truncationStrategy">Truncation strategy.</param>
-    /// <param name="stride">If set along with max_length, the overflowing tokens returned will contain some tokens from the main sequence returned.</param>
-    /// <returns>Tuple of updated sequences, overflow tokens, and overflow offsets.</returns>
-    /// <exception cref="TokenizerError">Thrown when truncation is not possible as per the provided parameters and strategy.</exception>
+    public static void DecomposeNfkc(Token token) => TokenAlignment.Normalize(token, NormalizationForm.FormKC);
 
-    public static (TokenIdsWithOffsets, TokenIdsWithOffsets?, List<long>, List<Offset?>) TruncateSequences(
-        TokenIdsWithOffsets tokenIdsWithOffsets1,
-        TokenIdsWithOffsets? tokenIdsWithOffsets2,
-        int numTokensToRemove,
-        TruncationStrategy truncationStrategy,
-        int stride)
+    public static void StripAccents(Token token)
     {
-        if (numTokensToRemove == 0)
+        TokenAlignment.Normalize(token, NormalizationForm.FormD);
+        uint[][] references = TokenAlignment.References(token);
+        var text = new StringBuilder();
+        var mapped = new List<uint[]>();
+        int index = 0;
+        foreach (Rune scalar in token.Text.EnumerateRunes())
         {
-            return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, new List<long>(), new List<Offset?>());
-        }
-        else if (tokenIdsWithOffsets2 != null)
-        {
-            switch (truncationStrategy)
+            if (Rune.GetUnicodeCategory(scalar) != UnicodeCategory.NonSpacingMark)
             {
-                case TruncationStrategy.LongestFirst:
-                    if (tokenIdsWithOffsets1.Ids.Count + tokenIdsWithOffsets2.Ids.Count >= numTokensToRemove)
-                    {
-                        var overflowTokens = new List<long>(numTokensToRemove + stride);
-                        var overflowOffsets = new List<Offset?>(numTokensToRemove + stride);
-                        for (var i = 0; i < numTokensToRemove; i++)
-                        {
-                            if (tokenIdsWithOffsets1.Ids.Count >= tokenIdsWithOffsets2.Ids.Count)
-                            {
-                                overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
-                                tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
-                                if (tokenIdsWithOffsets1.Offsets.Count > 0)
-                                {
-                                    overflowOffsets.Insert(0, tokenIdsWithOffsets1.Offsets.Last());
-                                    tokenIdsWithOffsets1.Offsets.RemoveAt(tokenIdsWithOffsets1.Offsets.Count - 1);
-                                }
-                                tokenIdsWithOffsets1.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets1.ReferenceOffsets.Count - 1);
-                                if (tokenIdsWithOffsets1.Masks.Count > 0)
-                                {
-                                    tokenIdsWithOffsets1.Masks.RemoveAt(tokenIdsWithOffsets1.Masks.Count - 1);
-                                }
-                            }
-                            else
-                            {
-                                overflowTokens.Insert(0, tokenIdsWithOffsets2.Ids.Last());
-                                tokenIdsWithOffsets2.Ids.RemoveAt(tokenIdsWithOffsets2.Ids.Count - 1);
-                                if (tokenIdsWithOffsets2.Offsets.Count > 0)
-                                {
-                                    overflowOffsets.Insert(0, tokenIdsWithOffsets2.Offsets.Last());
-                                    tokenIdsWithOffsets2.Offsets.RemoveAt(tokenIdsWithOffsets2.Offsets.Count - 1);
-                                }
-                                tokenIdsWithOffsets2.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets2.ReferenceOffsets.Count - 1);
-                                if (tokenIdsWithOffsets2.Masks.Count > 0)
-                                {
-                                    tokenIdsWithOffsets2.Masks.RemoveAt(tokenIdsWithOffsets2.Masks.Count - 1);
-                                }
-                            }
-                        }
-                        // Handle stride
-                        var windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
-                        if (windowLen > 0)
-                        {
-                            overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
-                            if (tokenIdsWithOffsets1.Offsets.Count > 0)
-                            {
-                                overflowOffsets.InsertRange(0, tokenIdsWithOffsets1.Offsets.GetRange(tokenIdsWithOffsets1.Offsets.Count - windowLen, windowLen));
-                            }
-                        }
-                        return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
-                    }
-                    else
-                    {
-                        throw new ValueTokenizerException("Combined sequence length too short for requested truncation amount");
-                    }
-
-                case TruncationStrategy.OnlyFirst:
-                    if (tokenIdsWithOffsets1.Ids.Count >= numTokensToRemove)
-                    {
-                        var overflowTokens = new List<long>();
-                        var overflowOffsets = new List<Offset?>();
-
-                        // Truncate the first sequence
-                        for (var i = 0; i < numTokensToRemove; i++)
-                        {
-                            overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
-                            tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
-
-                            if (tokenIdsWithOffsets1.Offsets.Count > 0)
-                            {
-                                overflowOffsets.Insert(0, tokenIdsWithOffsets1.Offsets.Last());
-                                tokenIdsWithOffsets1.Offsets.RemoveAt(tokenIdsWithOffsets1.Offsets.Count - 1);
-                            }
-
-                            tokenIdsWithOffsets1.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets1.ReferenceOffsets.Count - 1);
-
-                            if (tokenIdsWithOffsets1.Masks.Count > 0)
-                            {
-                                tokenIdsWithOffsets1.Masks.RemoveAt(tokenIdsWithOffsets1.Masks.Count - 1);
-                            }
-                        }
-
-                        // Handle stride
-                        var windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
-                        if (windowLen > 0)
-                        {
-                            overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
-                            if (tokenIdsWithOffsets1.Offsets.Count > 0)
-                            {
-                                overflowOffsets.InsertRange(0, tokenIdsWithOffsets1.Offsets.GetRange(tokenIdsWithOffsets1.Offsets.Count - windowLen, windowLen));
-                            }
-                        }
-
-                        return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
-                    }
-                    else
-                    {
-                        throw new ValueTokenizerException("First sequence too short for first only truncation");
-                    }
-
-                case TruncationStrategy.OnlySecond:
-                    if (tokenIdsWithOffsets2.Ids.Count >= numTokensToRemove)
-                    {
-                        var overflowTokens = new List<long>(numTokensToRemove + stride);
-                        var overflowOffsets = new List<Offset?>(numTokensToRemove + stride);
-
-                        for (var i = 0; i < numTokensToRemove; i++)
-                        {
-                            overflowTokens.Insert(0, tokenIdsWithOffsets2.Ids.Last());
-                            tokenIdsWithOffsets2.Ids.RemoveAt(tokenIdsWithOffsets2.Ids.Count - 1);
-
-                            if (tokenIdsWithOffsets2.Offsets.Count > 0)
-                            {
-                                overflowOffsets.Insert(0, tokenIdsWithOffsets2.Offsets.Last());
-                                tokenIdsWithOffsets2.Offsets.RemoveAt(tokenIdsWithOffsets2.Offsets.Count - 1);
-                            }
-
-                            tokenIdsWithOffsets2.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets2.ReferenceOffsets.Count - 1);
-
-                            if (tokenIdsWithOffsets2.Masks.Count > 0)
-                            {
-                                tokenIdsWithOffsets2.Masks.RemoveAt(tokenIdsWithOffsets2.Masks.Count - 1);
-                            }
-                        }
-
-                        // Handle stride
-                        var windowLen = Math.Min(tokenIdsWithOffsets2.Ids.Count, stride);
-                        if (windowLen > 0)
-                        {
-                            overflowTokens.InsertRange(0, tokenIdsWithOffsets2.Ids.GetRange(tokenIdsWithOffsets2.Ids.Count - windowLen, windowLen));
-                            if (tokenIdsWithOffsets2.Offsets.Count > 0)
-                            {
-                                overflowOffsets.InsertRange(0, tokenIdsWithOffsets2.Offsets.GetRange(tokenIdsWithOffsets2.Offsets.Count - windowLen, windowLen));
-                            }
-                        }
-
-                        return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
-                    }
-                    else
-                    {
-                        throw new ValueTokenizerException("Second sequence too short for second only truncation");
-                    }
-
-                case TruncationStrategy.DoNotTruncate:
-                    throw new Exception("Truncation needed but no truncation requested");
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(truncationStrategy), "Invalid truncation strategy");
+                text.Append(scalar);
+                mapped.Add(references[index]);
             }
+            index++;
         }
-        else if (tokenIdsWithOffsets1.Ids.Count >= numTokensToRemove)
-        {
-            switch (truncationStrategy)
-            {
-                case TruncationStrategy.LongestFirst:
-                case TruncationStrategy.OnlyFirst:
-                    var overflowTokens = new List<long>();
-                    var overflowOffsets = new List<Offset?>();
-
-                    // Truncate the first sequence
-                    for (var i = 0; i < numTokensToRemove; i++)
-                    {
-                        overflowTokens.Insert(0, tokenIdsWithOffsets1.Ids.Last());
-                        tokenIdsWithOffsets1.Ids.RemoveAt(tokenIdsWithOffsets1.Ids.Count - 1);
-
-                        if (tokenIdsWithOffsets1.Offsets.Count > 0)
-                        {
-                            overflowOffsets.Insert(0, tokenIdsWithOffsets1.Offsets.Last());
-                            tokenIdsWithOffsets1.Offsets.RemoveAt(tokenIdsWithOffsets1.Offsets.Count - 1);
-                        }
-
-                        tokenIdsWithOffsets1.ReferenceOffsets.RemoveAt(tokenIdsWithOffsets1.ReferenceOffsets.Count - 1);
-
-                        if (tokenIdsWithOffsets1.Masks.Count > 0)
-                        {
-                            tokenIdsWithOffsets1.Masks.RemoveAt(tokenIdsWithOffsets1.Masks.Count - 1);
-                        }
-                    }
-
-                    // Handle stride
-                    var windowLen = Math.Min(tokenIdsWithOffsets1.Ids.Count, stride);
-                    if (windowLen > 0)
-                    {
-                        overflowTokens.InsertRange(0, tokenIdsWithOffsets1.Ids.GetRange(tokenIdsWithOffsets1.Ids.Count - windowLen, windowLen));
-                        if (tokenIdsWithOffsets1.Offsets.Count > 0)
-                        {
-                            overflowOffsets.InsertRange(0, tokenIdsWithOffsets1.Offsets.GetRange(tokenIdsWithOffsets1.Offsets.Count - windowLen, windowLen));
-                        }
-                    }
-
-                    return (tokenIdsWithOffsets1, tokenIdsWithOffsets2, overflowTokens, overflowOffsets);
-
-                case TruncationStrategy.OnlySecond:
-                    throw new ValueTokenizerException("Invalid truncation strategy for single sentence truncation");
-
-                case TruncationStrategy.DoNotTruncate:
-                    throw new ValueTokenizerException("Truncation needed but no truncation requested");
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(truncationStrategy), "Invalid truncation strategy");
-            }
-        }
-        else
-        {
-            throw new ValueTokenizerException("First sequence too short for first only truncation");
-        }
+        TokenAlignment.Set(token, text.ToString(), mapped.ToArray());
+        TokenAlignment.Normalize(token, NormalizationForm.FormC);
     }
 
+    /// <summary>Truncate aligned sequences in place. Overflow includes optional retained stride context.</summary>
+    public static (TokenIdsWithOffsets, TokenIdsWithOffsets?, List<long>, List<Offset?>) TruncateSequences(
+        TokenIdsWithOffsets first, TokenIdsWithOffsets? second, int numTokensToRemove,
+        TruncationStrategy strategy, int stride)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(numTokensToRemove);
+        ArgumentOutOfRangeException.ThrowIfNegative(stride);
+        if (!Enum.IsDefined(strategy)) throw new ArgumentOutOfRangeException(nameof(strategy));
+        Validate(first);
+        if (second != null) Validate(second);
+        if (numTokensToRemove == 0) return (first, second, [], []);
+        if (strategy == TruncationStrategy.DoNotTruncate)
+            throw new ValueTokenizerException("Truncation needed but no truncation requested");
+        if (strategy == TruncationStrategy.OnlySecond && second == null)
+            throw new ValueTokenizerException("OnlySecond requires a second sequence");
+        long available = strategy switch
+        {
+            TruncationStrategy.OnlyFirst => first.Ids.Count,
+            TruncationStrategy.OnlySecond => second!.Ids.Count,
+            _ => first.Ids.Count + (long)(second?.Ids.Count ?? 0)
+        };
+        if (numTokensToRemove > available) throw new ValueTokenizerException("Sequence too short for requested truncation");
+
+        int removedFirst = 0, removedSecond = 0;
+        var overflow = new List<long>(numTokensToRemove);
+        var offsets = new List<Offset?>(numTokensToRemove);
+        // Record removals in reverse order, preserving the original paired LongestFirst contract.
+        for (int i = 0; i < numTokensToRemove; i++)
+        {
+            bool useFirst = strategy == TruncationStrategy.OnlyFirst ||
+                strategy == TruncationStrategy.LongestFirst &&
+                (second == null || first.Ids.Count - removedFirst >= second.Ids.Count - removedSecond);
+            var selected = useFirst ? first : second!;
+            int index = selected.Ids.Count - 1 - (useFirst ? removedFirst++ : removedSecond++);
+            overflow.Add(selected.Ids[index]);
+            offsets.Add(selected.Offsets[index]);
+        }
+        overflow.Reverse();
+        offsets.Reverse();
+        RemoveSuffix(first, removedFirst);
+        if (second != null) RemoveSuffix(second, removedSecond);
+        TokenIdsWithOffsets context = strategy == TruncationStrategy.OnlySecond ? second! : first;
+        int length = Math.Min(stride, context.Ids.Count);
+        if (length > 0)
+        {
+            overflow.InsertRange(0, context.Ids.GetRange(context.Ids.Count - length, length));
+            offsets.InsertRange(0, context.Offsets.GetRange(context.Offsets.Count - length, length));
+        }
+        return (first, second, overflow, offsets);
+    }
+
+    private static void Validate(TokenIdsWithOffsets tokens)
+    {
+        ArgumentNullException.ThrowIfNull(tokens);
+        if (tokens.Ids.Count != tokens.Offsets.Count || tokens.Ids.Count != tokens.ReferenceOffsets.Count ||
+            tokens.Ids.Count != tokens.Masks.Count)
+            throw new ArgumentException("IDs, offsets, reference offsets and masks must have equal lengths", nameof(tokens));
+    }
+
+    private static void RemoveSuffix(TokenIdsWithOffsets tokens, int count)
+    {
+        int start = tokens.Ids.Count - count;
+        tokens.Ids.RemoveRange(start, count);
+        tokens.Offsets.RemoveRange(start, count);
+        tokens.ReferenceOffsets.RemoveRange(start, count);
+        tokens.Masks.RemoveRange(start, count);
+    }
 }

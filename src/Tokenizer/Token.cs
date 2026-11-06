@@ -1,77 +1,51 @@
-﻿namespace Lokad.Tokenizers.Tokenizer;
+using System.Text;
 
-/// <summary>
-/// token that references the original text but stores its own string representation.
-/// </summary>
+namespace Lokad.Tokenizers.Tokenizer;
+
+/// <summary>A token with positions measured in Unicode scalars in the original input.</summary>
 public class Token : IToken
 {
-    /// <summary>
-    /// String representation
-    /// </summary>
     public string Text { get; set; }
-
-    /// <summary>
-    /// Start and end positions of the token with respect to the original text
-    /// </summary>
     public Offset Offset { get; set; }
-
-    /// <summary>
-    /// Sequence of positions with respect to the original text contained in the token.
-    /// For example, if the token offset is `start: 4, end: 10`, corresponding reference_offsets are `[4, 5, 6, 7, 8, 9]`
-    /// </summary>
-    public IReadOnlyList<uint> ReferenceOffsets { get; set; }
-
-    /// <summary>
-    /// Mask indicating the type of the token
-    /// </summary>
+    private IReadOnlyList<uint> referenceOffsets = [];
+    /// <summary>One starting source position for each scalar in Text.</summary>
+    public IReadOnlyList<uint> ReferenceOffsets
+    {
+        get => referenceOffsets;
+        set { referenceOffsets = value ?? throw new ArgumentNullException(nameof(value)); ScalarReferences = null; }
+    }
+    internal uint[][]? ScalarReferences { get; set; }
     public Mask Mask { get; set; }
 
-    /// <summary>
-    /// Creates a new owned token from a `String`.
-    /// </summary>
-    /// <param name="text">text reference</param>
     public Token(string text)
     {
+        ArgumentNullException.ThrowIfNull(text);
         Text = text;
-        var text_size = (uint)text.Length;
-        Offset = new Offset(0, text_size);
-        ReferenceOffsets = Enumerable.Range(0, (int)text_size).Select(i => (uint)i).ToList();
-        Mask = Mask.None;
+        int count = text.EnumerateRunes().Count();
+        Offset = new Offset(0, (uint)count);
+        ReferenceOffsets = Enumerable.Range(0, count).Select(i => (uint)i).ToArray();
     }
 
-    /// <summary>
-    /// Creates a new token from a text and list of offsets.
-    /// </summary>
-    /// <param name="text">text reference</param>
-    /// <param name="offsets">reference positions with respect to the original text</param>
-    public Token(string text, uint[] offsets)
+    public Token(string text, uint[] offsets) : this(text)
     {
-        Text = text;
-        Offset = new Offset(0, (uint)offsets.Length);
-        ReferenceOffsets = offsets;
-        Mask = Mask.None;
+        ArgumentNullException.ThrowIfNull(offsets);
+        ReferenceOffsets = offsets.ToArray();
+        Offset = offsets.Length == 0 ? new Offset(0, 0) : new Offset(offsets.Min(), checked(offsets.Max() + 1));
     }
 
     public Token(string text, Offset offset, IReadOnlyList<uint> referenceOffsets, Mask mask)
     {
-        Text = text;
-        Offset = offset;
-        ReferenceOffsets = referenceOffsets;
+        Text = text ?? throw new ArgumentNullException(nameof(text));
+        ArgumentNullException.ThrowIfNull(offset);
+        Offset = new Offset(offset.Begin, offset.End);
+        ReferenceOffsets = referenceOffsets.ToArray();
         Mask = mask;
     }
 
-    public override string ToString()
+    public override string ToString() => Text;
+    public static Token From(string text) => new(text);
+    public Token Clone() => new(Text, Offset, ReferenceOffsets, Mask)
     {
-        return Text;
-    }
-
-    public static Token From(string text)
-    {
-        return new Token(text);
-    }
-
-    public Token Clone()
-    {
-        return new Token(Text, Offset, new List<uint>(ReferenceOffsets), Mask);
-    }
+        ScalarReferences = ScalarReferences?.Select(r => r.ToArray()).ToArray()
+    };
 }

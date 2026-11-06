@@ -8,22 +8,22 @@ public interface IVocab
     /// <summary>
     /// Gets the dictionary of token values and their corresponding IDs.
     /// </summary>
-    Dictionary<string, long> Values { get; }
+    IReadOnlyDictionary<string, long> Values { get; }
 
     /// <summary>
     /// Gets the dictionary of token IDs and their corresponding values.
     /// </summary>
-    Dictionary<long, string> Indices { get; }
+    IReadOnlyDictionary<long, string> Indices { get; }
 
     /// <summary>
     /// Gets the dictionary of special token values and their corresponding IDs.
     /// </summary>
-    Dictionary<string, long> SpecialValues { get; }
+    IReadOnlyDictionary<string, long> SpecialValues { get; }
 
     /// <summary>
     /// Gets the dictionary of special token IDs and their corresponding values.
     /// </summary>
-    Dictionary<long, string> SpecialIndices { get; }
+    IReadOnlyDictionary<long, string> SpecialIndices { get; }
 
     /// <summary>
     /// Gets the collection of special tokens.

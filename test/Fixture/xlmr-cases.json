@@ -1,0 +1,788 @@
+{
+  "sourceCommit": "912c4c923376928bcc3d7ba28734b2d2c9af88c3",
+  "singleCases": [
+    {
+      "name": "Test1",
+      "text": "…",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        153,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          1
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test2",
+      "text": "This is a sample sentence to be tokénized",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        3293,
+        83,
+        10,
+        121413,
+        149357,
+        47,
+        186,
+        25636,
+        2746,
+        29367,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          4
+        ],
+        [
+          4,
+          7
+        ],
+        [
+          7,
+          9
+        ],
+        [
+          9,
+          16
+        ],
+        [
+          16,
+          25
+        ],
+        [
+          25,
+          28
+        ],
+        [
+          28,
+          31
+        ],
+        [
+          31,
+          35
+        ],
+        [
+          35,
+          38
+        ],
+        [
+          38,
+          42
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test2_1",
+      "text": "tokénized",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        25636,
+        2746,
+        29367,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          3
+        ],
+        [
+          3,
+          6
+        ],
+        [
+          6,
+          10
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test3",
+      "text": "Wondering how this will get tokenized 🤔 ?",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        76648,
+        214,
+        3642,
+        903,
+        1221,
+        2046,
+        47,
+        1098,
+        29367,
+        6,
+        243691,
+        705,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          6
+        ],
+        [
+          6,
+          9
+        ],
+        [
+          9,
+          13
+        ],
+        [
+          13,
+          18
+        ],
+        [
+          18,
+          23
+        ],
+        [
+          23,
+          27
+        ],
+        [
+          27,
+          30
+        ],
+        [
+          30,
+          33
+        ],
+        [
+          33,
+          37
+        ],
+        [
+          37,
+          38
+        ],
+        [
+          38,
+          39
+        ],
+        [
+          39,
+          41
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test3_1",
+      "text": "hi 🤔",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        1274,
+        6,
+        243691,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          4
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test3_2",
+      "text": " 🤔 ?",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        6,
+        243691,
+        705,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test4",
+      "text": "İs th!s 𩸽 Ϻ Šœ Ugljšić dấu nặng",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        63770,
+        5675,
+        38,
+        7,
+        6,
+        3,
+        6,
+        3,
+        3608,
+        52908,
+        345,
+        11016,
+        170,
+        36277,
+        39973,
+        55315,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          6,
+          7
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          8,
+          9
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          10,
+          11
+        ],
+        [
+          11,
+          13
+        ],
+        [
+          13,
+          14
+        ],
+        [
+          14,
+          16
+        ],
+        [
+          16,
+          18
+        ],
+        [
+          18,
+          19
+        ],
+        [
+          19,
+          22
+        ],
+        [
+          22,
+          26
+        ],
+        [
+          26,
+          31
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test4_1",
+      "text": "İs th!s",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        63770,
+        5675,
+        38,
+        7,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          6,
+          7
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test5",
+      "text": "   İs th!s    𩸽 Ϻ Šœ   Ugljšić  dấu nặng     ",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        6,
+        6,
+        63770,
+        5675,
+        38,
+        7,
+        6,
+        6,
+        6,
+        6,
+        3,
+        6,
+        3,
+        3608,
+        52908,
+        6,
+        6,
+        345,
+        11016,
+        170,
+        36277,
+        6,
+        39973,
+        55315,
+        6,
+        6,
+        6,
+        6,
+        6,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          5,
+          8
+        ],
+        [
+          8,
+          9
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          10,
+          11
+        ],
+        [
+          11,
+          12
+        ],
+        [
+          12,
+          13
+        ],
+        [
+          13,
+          14
+        ],
+        [
+          14,
+          15
+        ],
+        [
+          15,
+          16
+        ],
+        [
+          16,
+          17
+        ],
+        [
+          17,
+          19
+        ],
+        [
+          19,
+          20
+        ],
+        [
+          20,
+          21
+        ],
+        [
+          21,
+          22
+        ],
+        [
+          22,
+          24
+        ],
+        [
+          24,
+          26
+        ],
+        [
+          26,
+          27
+        ],
+        [
+          27,
+          30
+        ],
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          35
+        ],
+        [
+          35,
+          40
+        ],
+        [
+          40,
+          41
+        ],
+        [
+          41,
+          42
+        ],
+        [
+          42,
+          43
+        ],
+        [
+          43,
+          44
+        ],
+        [
+          44,
+          45
+        ],
+        null
+      ]
+    },
+    {
+      "name": "Test6",
+      "text": " � İs th!s �� 𩸽 Ϻ Šœ   Ugljšić  dấu nặng     ",
+      "maxLength": 128,
+      "strategy": "LongestFirst",
+      "ids": [
+        0,
+        6,
+        63770,
+        5675,
+        38,
+        7,
+        6,
+        6,
+        3,
+        6,
+        3,
+        3608,
+        52908,
+        6,
+        6,
+        345,
+        11016,
+        170,
+        36277,
+        6,
+        39973,
+        55315,
+        6,
+        6,
+        6,
+        6,
+        6,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          5,
+          8
+        ],
+        [
+          8,
+          9
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          10,
+          11
+        ],
+        [
+          13,
+          14
+        ],
+        [
+          14,
+          15
+        ],
+        [
+          15,
+          16
+        ],
+        [
+          16,
+          17
+        ],
+        [
+          17,
+          19
+        ],
+        [
+          19,
+          20
+        ],
+        [
+          20,
+          21
+        ],
+        [
+          21,
+          22
+        ],
+        [
+          22,
+          24
+        ],
+        [
+          24,
+          26
+        ],
+        [
+          26,
+          27
+        ],
+        [
+          27,
+          30
+        ],
+        [
+          30,
+          31
+        ],
+        [
+          31,
+          35
+        ],
+        [
+          35,
+          40
+        ],
+        [
+          40,
+          41
+        ],
+        [
+          41,
+          42
+        ],
+        [
+          42,
+          43
+        ],
+        [
+          43,
+          44
+        ],
+        [
+          44,
+          45
+        ],
+        null
+      ]
+    },
+    {
+      "name": "TestTruncateMaxLen",
+      "text": "Wondering how this will get tokenized 🤔 ?",
+      "maxLength": 5,
+      "strategy": "OnlyFirst",
+      "ids": [
+        0,
+        76648,
+        214,
+        3642,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          6
+        ],
+        [
+          6,
+          9
+        ],
+        [
+          9,
+          13
+        ],
+        null
+      ]
+    },
+    {
+      "name": "TestSpecialChar",
+      "text": "´",
+      "maxLength": 5,
+      "strategy": "OnlyFirst",
+      "ids": [
+        0,
+        3309,
+        2
+      ],
+      "offsets": [
+        null,
+        [
+          0,
+          1
+        ],
+        null
+      ]
+    }
+  ],
+  "corpora": [
+    {
+      "name": "Test_E5_Small_Input_Texts_HuggingFace_Default_Example_Should_Pass",
+      "expectedFile": "e5-small-input-texts-tokenized-hf-default-example.json",
+      "inputs": [
+        "query: how much protein should a female eat",
+        "query: 南瓜的家常做法",
+        "passage: As a general guideline, the CDC's average requirement of protein for women ages 19 to 70 is 46 grams per day. But, as you can see from this chart, you'll need to increase that if you're expecting or training for a marathon. Check out the chart below to see how much protein you should be eating each day.",
+        "passage: 1.清炒南瓜丝 原料:嫩南瓜半个 调料:葱、盐、白糖、鸡精 做法: 1、南瓜用刀薄薄的削去表面一层皮,用勺子刮去瓤 2、擦成细丝(没有擦菜板就用刀慢慢切成细丝) 3、锅烧热放油,入葱花煸出香味 4、入南瓜丝快速翻炒一分钟左右,放盐、一点白糖和鸡精调味出锅"
+      ]
+    },
+    {
+      "name": "Test_E5_Small_Input_Texts_LLM_Example1_Should_Pass",
+      "expectedFile": "e5-small-input-texts-tokenized-llm-example1.json",
+      "inputs": [
+        "query: Wie viel Protein sollte eine Frau essen?",
+        "passage: Als allgemeine Richtlinie gilt, dass der durchschnittliche Proteinbedarf der CDC für Frauen im Alter von 19 bis 70 Jahren 46 Gramm pro Tag beträgt. Wie Sie dieser Tabelle entnehmen können, müssen Sie diesen Wert jedoch erhöhen, wenn Sie schwanger sind oder für einen Marathon trainieren. Sehen Sie sich die folgende Tabelle an, um zu sehen, wie viel Protein Sie täglich zu sich nehmen sollten.",
+        "query: ¿Cuánta proteína debe comer una mujer?",
+        "passage: Como pauta general, el requerimiento promedio de proteína de los CDC para mujeres de 19 a 70 años es de 46 gramos por día. Pero, como puede ver en esta tabla, deberá aumentarlo si está embarazada o entrenando para un maratón. Consulte la tabla a continuación para ver cuánta proteína debe consumir cada día.",
+        "query: كم يجب أن تأكل المرأة من البروتين؟",
+        "passage: كدليل عام، فإن متطلبات البروتين المتوسطة لمراكز السيطرة على الأمراض للنساء اللواتي تتراوح أعمارهن بين 19 و70 عامًا هي 46 جرامًا في اليوم. ولكن، كما ترى من هذا الرسم البياني، ستحتاجين إلى زيادة ذلك إذا كنتِ تتوقعين أو تتدربين من أجل سباق الماراثون. تحقق من الرسم البياني أدناه لمعرفة مقدار البروتين الذي يجب أن تتناولينه كل يوم."
+      ]
+    },
+    {
+      "name": "Test_E5_Small_Input_Texts_LLM_French_Examples_Should_Pass",
+      "expectedFile": "e5-small-input-texts-tokenized-llm-french-examples.json",
+      "inputs": [
+        "query: Où est l'arrêt de bus le plus proche ?",
+        "passage: L'arrêt de bus le plus proche se trouve à l'angle de la rue de Rivoli et de la rue Saint-Antoine.",
+        "query: Quel est le meilleur restaurant de Paris ?",
+        "passage: Le meilleur restaurant de Paris est le Jules Verne, situé au deuxième étage de la tour Eiffel.",
+        "query: Quelle est la meilleure façon de visiter le Louvre ?",
+        "passage: La meilleure façon de visiter le Louvre est de prendre un audioguide et de suivre un itinéraire thématique."
+      ]
+    },
+    {
+      "name": "Test_E5_Small_Input_Texts_LLM_German_Examples_Should_Pass",
+      "expectedFile": "e5-small-input-texts-tokenized-llm-german-examples.json",
+      "inputs": [
+        "query: Wo ist die nächste Bushaltestelle?",
+        "passage: Die nächste Bushaltestelle befindet sich an der Ecke Rivolistraße und Saint-Antoine-Straße.",
+        "query: Welches ist das beste Restaurant in Paris?",
+        "passage: Das beste Restaurant in Paris ist das Jules Verne, das sich im zweiten Stock des Eiffelturms befindet.",
+        "query: Wie kann man den Louvre am besten besichtigen?",
+        "passage: Die beste Möglichkeit, den Louvre zu besichtigen, ist, einen Audioguide zu nehmen und einem thematischen Rundgang zu folgen."
+      ]
+    },
+    {
+      "name": "Test_E5_Small_Input_Texts_LLM_Spanish_Examples_Should_Pass",
+      "expectedFile": "e5-small-input-texts-tokenized-llm-spanish-examples.json",
+      "inputs": [
+        "query: ¿Dónde está la parada de autobús más cercana?",
+        "passage: La parada de autobús más cercana se encuentra en la esquina de la calle de Rivoli y de la calle Saint-Antoine.",
+        "query: ¿Cuál es el mejor restaurante de París?",
+        "passage: El mejor restaurante de París es el Jules Verne, situado en el segundo piso de la torre Eiffel.",
+        "query: ¿Cuál es la mejor manera de visitar el Louvre?",
+        "passage: La mejor manera de visitar el Louvre es tomar una audioguía y seguir un itinerario temático."
+      ]
+    }
+  ]
+}

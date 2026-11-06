@@ -5,6 +5,7 @@
 /// </summary>
 public class Node
 {
+    internal uint[][]? ScalarReferences { get; set; }
     /// <summary>
     /// Initializes a new instance of the <see cref="Node"/> class.
     /// </summary>

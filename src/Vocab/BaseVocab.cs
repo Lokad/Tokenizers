@@ -1,170 +1,83 @@
-﻿using Google.Protobuf;
+using System.Collections.ObjectModel;
 
 namespace Lokad.Tokenizers.Vocab;
 
-/// <summary>
-/// Represents a base vocabulary for tokenization.
-/// </summary>
+/// <summary>A vocabulary with read-only views and controlled token additions.</summary>
+/// <remarks>Concurrent reads are supported. Do not add tokens during tokenization.</remarks>
 public class BaseVocab : IVocab
 {
-    /// <summary>
-    /// Gets the dictionary of token values and their corresponding IDs.
-    /// </summary>
-    public Dictionary<string, long> Values { get; private set; }
+    private readonly Dictionary<string, long> values;
+    private readonly Dictionary<long, string> indices;
+    private readonly SpecialTokenMap specialTokens;
+    private readonly object mutation = new();
+    public IReadOnlyDictionary<string, long> Values { get; }
+    public IReadOnlyDictionary<long, string> Indices { get; }
+    /// <summary>A copy of the special-token configuration.</summary>
+    public SpecialTokenMap SpecialTokenMap => specialTokens.Copy();
+    public IReadOnlyDictionary<string, long> SpecialValues { get; }
+    public IReadOnlyDictionary<long, string> SpecialIndices { get; }
 
-    /// <summary>
-    /// Gets the dictionary of token IDs and their corresponding values.
-    /// </summary>
-    public Dictionary<long, string> Indices { get; private set; }
-
-    /// <summary>
-    /// Gets the special token map.
-    /// </summary>
-    public SpecialTokenMap SpecialTokenMap { get; private set; }
-
-    /// <summary>
-    /// Gets the dictionary of special token values and their corresponding IDs.
-    /// </summary>
-    public Dictionary<string, long> SpecialValues { get; private set; }
-
-    /// <summary>
-    /// Gets the dictionary of special token IDs and their corresponding values.
-    /// </summary>
-    public Dictionary<long, string> SpecialIndices { get; private set; }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BaseVocab"/> class.
-    /// </summary>
-    /// <param name="values">The dictionary of token values and their corresponding IDs.</param>
-    /// <param name="specialTokenMap">The special token map.</param>
-    /// <exception cref="ArgumentNullException">Thrown when values or specialTokenMap is null.</exception>
     public BaseVocab(Dictionary<string, long> values, SpecialTokenMap specialTokenMap)
     {
-        Values = values ?? throw new ArgumentNullException(nameof(values));
-        SpecialTokenMap = specialTokenMap ?? throw new ArgumentNullException(nameof(specialTokenMap));
-        SpecialValues = new Dictionary<string, long>();
-        SpecialTokenMap.RegisterSpecialValues(values, SpecialValues);
-        Indices = VocabHelper.SwapKeyValue(Values);
-        SpecialIndices = VocabHelper.SwapKeyValue(SpecialValues);
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(specialTokenMap);
+        if (values.Any(p => string.IsNullOrEmpty(p.Key) || p.Value < 0))
+            throw new ArgumentException("Vocabulary tokens must be nonempty and IDs nonnegative", nameof(values));
+        this.values = new(values, StringComparer.Ordinal);
+        if (values.Values.Distinct().Count() != values.Count)
+            throw new ArgumentException("Vocabulary IDs must be unique", nameof(values));
+        indices = this.values.ToDictionary(p => p.Value, p => p.Key);
+        specialTokens = specialTokenMap.Copy();
+        var specials = new Dictionary<string, long>(StringComparer.Ordinal);
+        specialTokens.RegisterSpecialValues(this.values, specials);
+        Values = new ReadOnlyDictionary<string, long>(this.values);
+        Indices = new ReadOnlyDictionary<long, string>(indices);
+        SpecialValues = new ReadOnlyDictionary<string, long>(specials);
+        SpecialIndices = new ReadOnlyDictionary<long, string>(specials.ToDictionary(p => p.Value, p => p.Key));
     }
 
-    /// <summary>
-    /// Gets the value representing an unknown token.
-    /// </summary>
-    /// <returns>The unknown token value.</returns>
-    public string GetUnknownValue() => SpecialTokenMap.UnkToken;
+    public string GetUnknownValue() => specialTokens.UnkToken;
+    public string GetBosValue() => Required(specialTokens.BosToken, "BOS");
+    public string GetEosValue() => Required(specialTokens.EosToken, "EOS");
+    public string GetPadValue() => Required(specialTokens.PadToken, "PAD");
+    public string GetSepValue() => Required(specialTokens.SepToken, "SEP");
+    public string GetClsValue() => Required(specialTokens.ClsToken, "CLS");
+    public string GetMaskValue() => Required(specialTokens.MaskToken, "MASK");
+    private static string Required(string? token, string kind) =>
+        token ?? throw new InvalidOperationException("Vocabulary does not define a " + kind + " token");
+    public IEnumerable<string> SpecialTokens() => SpecialValues.Keys;
+    public long TokenToId(string token) => values.TryGetValue(token, out long id) ? id : values[GetUnknownValue()];
+    public string IdToToken(long id) => indices.TryGetValue(id, out string? token) ? token : GetUnknownValue();
+    public List<long> ConvertTokensToIds(IEnumerable<string> tokens) => tokens.Select(TokenToId).ToList();
 
-    /// <summary>
-    /// Gets the value representing the beginning of a sequence.
-    /// </summary>
-    /// <returns>The beginning of sequence token value.</returns>
-    public string GetBosValue() => SpecialTokenMap.BosToken;
-
-    /// <summary>
-    /// Gets the value representing the end of a sequence.
-    /// </summary>
-    /// <returns>The end of sequence token value.</returns>
-    public string GetEosValue() => SpecialTokenMap.EosToken;
-
-    /// <summary>
-    /// Gets the value representing a padding token.
-    /// </summary>
-    /// <returns>The padding token value.</returns>
-    public string GetPadValue() => SpecialTokenMap.PadToken;
-
-    /// <summary>
-    /// Gets the value representing a separator token.
-    /// </summary>
-    /// <returns>The separator token value.</returns>
-    public string GetSepValue() => SpecialTokenMap.SepToken;
-
-    /// <summary>
-    /// Gets the value representing a classification token.
-    /// </summary>
-    /// <returns>The classification token value.</returns>
-    public string GetClsValue() => SpecialTokenMap.ClsToken;
-
-    /// <summary>
-    /// Gets the value representing a mask token.
-    /// </summary>
-    /// <returns>The mask token value.</returns>
-    public string GetMaskValue() => SpecialTokenMap.MaskToken;
-
-    /// <summary>
-    /// Gets the collection of special tokens.
-    /// </summary>
-    /// <returns>An enumerable collection of special tokens.</returns>
-    public IEnumerable<string> SpecialTokens()
-    {
-        // [vermorel] Method manually inserted, not sure about the semantic.
-        return SpecialValues.Keys;
-    }
-
-    /// <summary>
-    /// Converts a token to its corresponding ID.
-    /// </summary>
-    /// <param name="token">The token to convert.</param>
-    /// <returns>The ID of the token.</returns>
-    public long TokenToId(string token)
-    {
-        if (SpecialValues.TryGetValue(token, out var id))
-            return id;
-        return Values.TryGetValue(token, out id) ? id : Values[GetUnknownValue()];
-    }
-
-    /// <summary>
-    /// Converts an ID to its corresponding token.
-    /// </summary>
-    /// <param name="id">The ID to convert.</param>
-    /// <returns>The token corresponding to the ID.</returns>
-    public string IdToToken(long id)
-    {
-        if (SpecialIndices.TryGetValue(id, out var token))
-            return token;
-        return Indices.TryGetValue(id, out token) ? token : GetUnknownValue();
-    }
-
-    /// <summary>
-    /// Converts a collection of tokens to their corresponding IDs.
-    /// </summary>
-    /// <param name="tokens">The tokens to convert.</param>
-    /// <returns>A list of IDs corresponding to the tokens.</returns>
-    public List<long> ConvertTokensToIds(IEnumerable<string> tokens)
-    {
-        return tokens.Select(TokenToId).ToList();
-    }
-
-    /// <summary>
-    /// Adds extra IDs to the vocabulary.
-    /// </summary>
-    /// <param name="numExtraIds">The number of extra IDs to add.</param>
+    /// <summary>Ensure that extra_id_0 through extra_id_(numExtraIds-1) exist. Repeated calls are safe.</summary>
     public void AddExtraIds(long numExtraIds)
     {
-        // Implementation for adding extra IDs...
-        var maxId = Values.Values.DefaultIfEmpty().Max();
-        for (long i = 0; i < numExtraIds; i++)
-        {
-            var extraIdToken = $"<extra_id_{i}>";
-            var nextId = maxId + i + 1;
-            Values[extraIdToken] = nextId;
-            Indices[nextId] = extraIdToken;
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(numExtraIds);
+        if (numExtraIds > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(numExtraIds));
+        AddTokens(Enumerable.Range(0, (int)numExtraIds).Select(i => $"<extra_id_{i}>"));
     }
 
-    /// <summary>
-    /// Adds a collection of tokens to the vocabulary.
-    /// </summary>
-    /// <param name="tokens">The tokens to add.</param>
+    /// <summary>Add new tokens in enumeration order without changing existing IDs.</summary>
     public void AddTokens(IEnumerable<string> tokens)
     {
-        // Implementation for adding tokens...
-        foreach (var token in tokens)
+        ArgumentNullException.ThrowIfNull(tokens);
+        lock (mutation)
         {
-            if (!Values.ContainsKey(token))
+            var additions = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string token in tokens)
             {
-                var nextId = Values.Values.DefaultIfEmpty().Max() + 1;
-                Values[token] = nextId;
-                Indices[nextId] = token;
+                ArgumentException.ThrowIfNullOrEmpty(token);
+                if (!values.ContainsKey(token) && seen.Add(token)) additions.Add(token);
+            }
+            long maximum = values.Values.DefaultIfEmpty(-1).Max();
+            _ = checked(maximum + additions.Count);
+            foreach (string token in additions)
+            {
+                long id = ++maximum;
+                values.Add(token, id);
+                indices.Add(id, token);
             }
         }
     }

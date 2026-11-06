@@ -1,169 +1,103 @@
-﻿using Lokad.Tokenizers.Vocab;
 using System.Text;
+using Lokad.Tokenizers.Vocab;
 
 namespace Lokad.Tokenizers.Tokenizer;
 
-/// <summary>
-/// XLM RoBERTa tokenizer performing:
-/// - Splitting on special tokens
-/// - text cleaning
-/// - NFKC decomposition
-/// - (optional) lower casing
-/// - SentencePiece decomposition
-/// </summary>
+/// <summary>XLM-R encoding with literal special tokens, cleaning, NFKC and optional invariant lowercase.</summary>
+/// <remarks>Loads the qualified nmt_nfkc unigram model profile. Repeated whitespace is preserved as in the legacy API.</remarks>
 public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 {
-    private readonly SentencePieceModel _model;
-    private readonly XlmRobertaVocab _vocab;
-    private readonly bool _lowerCase;
+    private readonly SentencePieceModel model;
+    private readonly bool lowerCase;
+    internal SentencePieceModel Model => model;
 
-    /// <summary>
-    /// Create a new instance of a `XLMRobertaTokenizer`
-    /// Expects a json vocab file and a SentencePiece protobuf file as an input.
-    /// </summary>
-    public XLMRobertaTokenizer(string path, bool lowerCase)
-        : base(XlmRobertaVocab.FromFile(path), lowerCase, false)
-    {
-        _model = SentencePieceModel.FromFile(path);
-        _vocab = Vocab;
-        _lowerCase = lowerCase;
-    }
+    /// <summary>Read vocabulary and scores from one local SentencePiece protobuf file.</summary>
+    public XLMRobertaTokenizer(string path, bool lowerCase) : this(Load(path, null), lowerCase) { }
 
-    /// <summary>
-    /// Create a new instance of a `XLMRobertaTokenizer` with special token mapping.
-    /// Expects a json vocab file, a SentencePiece protobuf file, and a special token mapping file as inputs.
-    /// </summary>
+    /// <summary>Read one protobuf and a local special-token mapping JSON file.</summary>
     public XLMRobertaTokenizer(string path, bool lowerCase, string specialTokenMappingPath)
-        : base(XlmRobertaVocab.FromFileWithSpecialTokenMapping(path, specialTokenMappingPath), lowerCase, false)
+        : this(Load(path, specialTokenMappingPath), lowerCase) { }
+
+    private XLMRobertaTokenizer((XlmRobertaVocab Vocabulary, SentencePieceModel Model) loaded, bool lowerCase)
+        : this(loaded.Vocabulary, loaded.Model, lowerCase) { }
+
+    private static (XlmRobertaVocab, SentencePieceModel) Load(string path, string? mapping)
     {
-        _model = SentencePieceModel.FromFile(path);
-        _vocab = Vocab;
-        _lowerCase = lowerCase;
+        ModelProto proto = VocabHelper.OpenProtobufFile(path);
+        SentencePieceModel.Validate(proto);
+        return (XlmRobertaVocab.FromValidatedModel(proto,
+            mapping == null ? null : VocabHelper.ReadSpecialTokenMappingFile(mapping, "<unk>")),
+            SentencePieceModel.FromValidatedModel(proto));
     }
 
-    /// <summary>
-    /// Create a new instance of a `XLMRobertaTokenizer` from an existing vocabulary and model.
-    /// </summary>
+    /// <summary>Use a caller-supplied compatible vocabulary and model. Do not modify either during encoding.</summary>
     public XLMRobertaTokenizer(XlmRobertaVocab vocab, SentencePieceModel model, bool lowerCase)
-        : base(vocab, lowerCase, false)
+        : base(vocab, false, false)
     {
-        _vocab = vocab;
-        _model = model;
-        _lowerCase = lowerCase;
+        this.model = model ?? throw new ArgumentNullException(nameof(model));
+        this.lowerCase = lowerCase;
     }
 
-    /// <summary>
-    /// Tokenizes the given text into a list of tokens.
-    /// </summary>
     public override List<Token> TokenizeToTokens(Token tokenRef)
     {
-        var tokens = SplitOnSpecialTokens(tokenRef, _vocab)
-            .Select(t => t.Clone())
-            .ToList();
-
-        var subTokens = new List<Token>();
-        foreach (var token in tokens)
+        var result = new List<Token>();
+        foreach (Token token in SplitOnSpecialTokens(tokenRef, Vocab))
         {
-            if (token.Mask != Mask.Special && token.Mask != Mask.Unknown)
+            if (token.Mask is Mask.Special or Mask.Unknown) { result.Add(token); continue; }
+            TokenizationUtils.CleanText(token, true);
+            TokenizationUtils.DecomposeNfkc(token);
+            if (lowerCase) TokenizationUtils.Lowercase(token);
+            if (token.Text.Length == 0) continue;
+            var replaced = new StringBuilder(token.Text.Length);
+            foreach (Rune scalar in token.Text.EnumerateRunes())
+                replaced.Append(TokenizationUtils.IsWhitespace(scalar) ? new Rune(TokenizationUtils.Metaspace) : scalar);
+            token.Text = replaced.ToString();
+            if (!token.Text.StartsWith(TokenizationUtils.Metaspace))
             {
-                TokenizationUtils.CleanText(token, true);
-                TokenizationUtils.DecomposeNfkc(token);
-                if (_lowerCase)
-                {
-                    TokenizationUtils.Lowercase(token);
-                }
-
-                // Manually replacing whitespace characters
-                var newText = new StringBuilder();
-                foreach (var c in token.Text.EnumerateRunes())
-                {
-                    newText.Append(TokenizationUtils.IsWhitespace(c) ? new Rune(Constants.LowerOneEighthBlock) : c.ToString());
-                }
-                token.Text = newText.ToString();
-
-                if (!token.Text.StartsWith(Constants.LowerOneEighthBlock))
-                {
-                    token.Text = Constants.LowerOneEighthBlock + token.Text;
-                    var newReferenceOffsets = new List<uint> { 0 };
-                    newReferenceOffsets.AddRange(token.ReferenceOffsets);
-                    token.ReferenceOffsets = newReferenceOffsets;
-                }
-
-                var output = _model.DecodeForwardTokenRef(token);
-                var decoded = _model.DecodeBackward(output.ToArray());
-                var outputTokens = _model.ParseNodesToTokens(decoded);
-                subTokens.AddRange(outputTokens);
+                uint[][] references = TokenAlignment.References(token);
+                TokenAlignment.Set(token, TokenizationUtils.Metaspace + token.Text,
+                    new[] { new[] { references[0].Min() } }.Concat(references).ToArray());
             }
-            else
-            {
-                subTokens.Add(token.Clone());
-            }
+            result.AddRange(model.ParseNodesToTokens(model.DecodeBackward(model.DecodeForwardTokenRef(token).ToArray())));
         }
-        return subTokens;
+        return result;
     }
 
-    /// <summary>
-    /// Builds input with special tokens.
-    /// </summary>
-    public override TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1, TokenIdsWithOffsets tokens2 = null)
+    public override TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1,
+        TokenIdsWithOffsets? tokens2 = null)
     {
-        var output = new List<long> { _vocab.TokenToId(_vocab.GetClsValue()) };
-        var tokenSegmentIds = new List<int> { 0 };
-        var specialTokensMask = new List<int> { 1 };
-        var offsets = new List<Offset?> { null };
-        var originalOffsets = new List<List<uint>> { new List<uint>() };
-        var mask = new List<Mask> { Mask.Special };
-
-        output.AddRange(tokens1.Ids);
-        tokenSegmentIds.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
-        specialTokensMask.AddRange(Enumerable.Repeat(0, tokens1.Ids.Count));
-        offsets.AddRange(tokens1.Offsets);
-        originalOffsets.AddRange(tokens1.ReferenceOffsets);
-        mask.AddRange(tokens1.Masks);
-
-        output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-        tokenSegmentIds.Add(0);
-        specialTokensMask.Add(1);
-        offsets.Add(null);
-        originalOffsets.Add(new List<uint>());
-        mask.Add(Mask.Special);
-
+        var result = new TokenIdsWithSpecialTokens();
+        void Special(string text, byte segment)
+        {
+            result.TokenIds.Add(Vocab.TokenToId(text));
+            result.SegmentIds.Add(segment);
+            result.SpecialTokensMask.Add(1);
+            result.TokenOffsets.Add(null);
+            result.ReferenceOffsets.Add([]);
+            result.Mask.Add(Mask.Special);
+        }
+        void Sequence(TokenIdsWithOffsets tokens, byte segment)
+        {
+            result.TokenIds.AddRange(tokens.Ids);
+            result.SegmentIds.AddRange(Enumerable.Repeat(segment, tokens.Ids.Count));
+            result.SpecialTokensMask.AddRange(Enumerable.Repeat((byte)0, tokens.Ids.Count));
+            result.TokenOffsets.AddRange(tokens.Offsets);
+            result.ReferenceOffsets.AddRange(tokens.ReferenceOffsets);
+            result.Mask.AddRange(tokens.Masks);
+        }
+        Special(Vocab.GetClsValue(), 0);
+        Sequence(tokens1, 0);
+        Special(Vocab.GetSepValue(), 0);
         if (tokens2 != null)
         {
-            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-            output.AddRange(tokens2.Ids);
-            tokenSegmentIds.AddRange(Enumerable.Repeat(1, tokens2.Ids.Count + 1));
-            specialTokensMask.AddRange(Enumerable.Repeat(0, tokens2.Ids.Count).Prepend(1));
-            offsets.AddRange(tokens2.Offsets.Prepend(null));
-            originalOffsets.AddRange(tokens2.ReferenceOffsets.Prepend(new List<uint>()));
-            mask.AddRange(tokens2.Masks.Prepend(Mask.Special));
-
-            output.Add(_vocab.TokenToId(_vocab.GetSepValue()));
-            tokenSegmentIds.Add(1);
-            specialTokensMask.Add(1);
-            offsets.Add(null);
-            originalOffsets.Add(new List<uint>());
-            mask.Add(Mask.Special);
+            Special(Vocab.GetSepValue(), 1);
+            Sequence(tokens2, 1);
+            Special(Vocab.GetSepValue(), 1);
         }
-
-        return new TokenIdsWithSpecialTokens
-        {
-            TokenIds = output,
-            SegmentIds = tokenSegmentIds.Select(i => (byte)i).ToList(),
-            SpecialTokensMask = specialTokensMask.Select(i => (byte)i).ToList(),
-            TokenOffsets = offsets,
-            ReferenceOffsets = originalOffsets,
-            Mask = mask
-        };
+        return result;
     }
 
-    /// <summary>
-    /// Converts a list of tokens to a single string.
-    /// </summary>
-    public string ConvertTokensToString(List<string> tokens)
-    {
-        return string.Join("", tokens.Select(t => t.Replace(Constants.LowerOneEighthBlock.ToString(), " ")));
-    }
-
-
+    /// <summary>Join pieces, replace SentencePiece whitespace markers, and remove boundary whitespace.</summary>
+    public override string ConvertTokensToString(List<string> tokens) =>
+        string.Concat(tokens).Replace(TokenizationUtils.Metaspace, ' ').Trim();
 }

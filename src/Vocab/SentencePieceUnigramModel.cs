@@ -1,292 +1,187 @@
-﻿using Lokad.Tokenizers.Tokenizer;
+using System.Security.Cryptography;
 using System.Text;
+using Lokad.Tokenizers.Tokenizer;
 
 namespace Lokad.Tokenizers.Vocab;
 
-/// <summary>
-/// Represents a SentencePiece model for tokenization.
-/// </summary>
+/// <summary>Scored unigram segmentation for the supported XLM-R SentencePiece profile.</summary>
+/// <remarks>Do not mutate Root or its descendants while encoding concurrently.</remarks>
 public class SentencePieceModel
 {
-    /// <summary>
-    /// Gets or sets the root node of the trie.
-    /// </summary>
-    public TrieNode Root { get; set; }
+    public TrieNode Root { get; set; } = new("");
+    private float unknownScore = -100;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SentencePieceModel"/> class.
-    /// </summary>
-    public SentencePieceModel()
+    public static SentencePieceModel FromFile(string path) => FromModel(VocabHelper.OpenProtobufFile(path));
+
+    internal static SentencePieceModel FromModel(ModelProto proto)
     {
-        Root = new TrieNode("");
+        Validate(proto);
+        return FromValidatedModel(proto);
     }
 
-    /// <summary>
-    /// Creates a <see cref="SentencePieceModel"/> from a file.
-    /// </summary>
-    /// <param name="path">The path to the file.</param>
-    /// <returns>A <see cref="SentencePieceModel"/> instance.</returns>
-    public static SentencePieceModel FromFile(string path)
+    internal static SentencePieceModel FromValidatedModel(ModelProto proto)
     {
-        var model = new SentencePieceModel();
-        var proto = VocabHelper.OpenProtobufFile(path);
-
-        foreach (var piece in proto.Pieces.Select((p, i) => new { p.Piece, p.Score, Index = i }))
+        var model = new SentencePieceModel
         {
-            model.Insert(piece.Piece, piece.Score, piece.Index);
-        }
-
+            unknownScore = proto.Pieces.Skip(3).Min(p => p.Score) - 10
+        };
+        for (int index = 3; index < proto.Pieces.Count; index++)
+            model.Insert(proto.Pieces[index].Piece, proto.Pieces[index].Score, index);
         return model;
     }
 
-    /// <summary>
-    /// Inserts a word into the trie.
-    /// </summary>
-    /// <param name="word">The word to insert.</param>
-    /// <param name="score">The score of the word.</param>
-    /// <param name="index">The index of the word.</param>
-    private void Insert(string word, float score, int index)
+    internal static void Validate(ModelProto proto)
+    {
+        var trainer = proto.TrainerSpec;
+        var normalizer = proto.NormalizerSpec;
+        if (trainer == null || trainer.ModelType != TrainerSpec.Types.ModelType.Unigram || trainer.ByteFallback ||
+            trainer.UnkId != 0 || trainer.BosId != 1 || trainer.EosId != 2 || trainer.PadId != -1 ||
+            trainer.TreatWhitespaceAsSuffix)
+            throw new NotSupportedException("Only unigram XLM-R models with standard SentencePiece IDs and no byte fallback are supported");
+        if (normalizer == null || normalizer.Name != "nmt_nfkc" || !normalizer.AddDummyPrefix ||
+            !normalizer.RemoveExtraWhitespaces || !normalizer.EscapeWhitespaces || proto.DenormalizerSpec != null ||
+            Convert.ToHexStringLower(SHA256.HashData(normalizer.PrecompiledCharsmap.Span)) !=
+                "0942789e0111452f1cc446f70036e26d24458c3c7858c53cc12ca4d87531279b")
+            throw new NotSupportedException("Unsupported XLM-R normalization profile");
+        if (proto.Pieces.Count < 4 || trainer.VocabSize != proto.Pieces.Count ||
+            proto.Pieces[0].Piece != "<unk>" || proto.Pieces[1].Piece != "<s>" || proto.Pieces[2].Piece != "</s>" ||
+            proto.Pieces[0].Type != ModelProto.Types.SentencePiece.Types.Type.Unknown ||
+            proto.Pieces[1].Type != ModelProto.Types.SentencePiece.Types.Type.Control ||
+            proto.Pieces[2].Type != ModelProto.Types.SentencePiece.Types.Type.Control)
+            throw new InvalidDataException("Invalid XLM-R vocabulary or special-token layout");
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (int i = 0; i < proto.Pieces.Count; i++)
+        {
+            var piece = proto.Pieces[i];
+            if (piece.Piece.Length == 0 || !seen.Add(piece.Piece) || !float.IsFinite(piece.Score))
+                throw new InvalidDataException("Vocabulary pieces must be nonempty, unique and have finite scores");
+            if (i >= 3 && piece.Type != ModelProto.Types.SentencePiece.Types.Type.Normal)
+                throw new NotSupportedException("Only normal pieces after the three SentencePiece special entries are supported");
+        }
+    }
+
+    private void Insert(string text, float score, int index)
     {
         var node = Root;
-
-        var runes = word.EnumerateRunes().ToList();
-        for (var i = 0; i < runes.Count; i++)
+        foreach (Rune rune in text.EnumerateRunes())
         {
-            var character = runes[i];
-            if (!node.Children.ContainsKey(character))
-            {
-                var text = node.Text + character;
-                node.Children[character] = new TrieNode(text);
-            }
-
-            node = node.Children[character];
-
-            if (i == runes.Count - 1)
-            {
-                node.End = true;
-                node.Score = score;
-                node.Index = index;
-            }
+            if (!node.Children.TryGetValue(rune, out var child))
+                node.Children.Add(rune, child = new TrieNode(node.Text + rune));
+            node = child;
         }
+        node.End = true;
+        node.Score = score;
+        node.Index = index;
     }
 
-    /// <summary>
-    /// Searches for common prefixes in the trie.
-    /// </summary>
-    /// <param name="text">The text to search for.</param>
-    /// <returns>A list of <see cref="TrieNode"/> representing the common prefixes.</returns>
     public List<TrieNode> CommonPrefixSearch(string text)
     {
-        var results = new List<TrieNode>();
-        var characters = text.EnumerateRunes().ToList();
-        if (characters.Count == 0) return results;
-        var currentChar = characters[0];
-        var node = Root.Children.GetValueOrDefault(currentChar);
-
-        if (node != null)
+        var result = new List<TrieNode>();
+        var node = Root;
+        foreach (Rune rune in text.EnumerateRunes())
         {
-            if (node.End)
-            {
-                results.Add(node);
-            }
+            if (!node.Children.TryGetValue(rune, out node)) break;
+            if (node.End) result.Add(node);
         }
-        else
-        {
-            return results;
-        }
-
-        var remainingCharacters = characters.Skip(1).ToList();
-        foreach (var character in remainingCharacters)
-        {
-            node = node.Children.GetValueOrDefault(character);
-
-            if (node != null)
-            {
-                if (node.End)
-                {
-                    results.Add(node);
-                }
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        return results;
+        return result;
     }
 
-    /// <summary>
-    /// Decodes a token forward to find references.
-    /// </summary>
-    /// <param name="token">The token to decode.</param>
-    /// <returns>A list of <see cref="Node"/> representing the decoded references.</returns>
+    /// <summary>Compute best predecessor nodes once, without constructing suffix strings.</summary>
     public List<Node?> DecodeForwardTokenRef(Token token)
     {
-        var charPositions = new List<int>();
-
-        var runes = TokenizationUtils.CharIndicesForRunes(token.Text).ToList();
-        runes.ForEach((i => charPositions.Add(i.Index)));
-        charPositions.Add(TokenizationUtils.GetUtf8BytesCount(token.Text));
-
-        var results = new Node?[charPositions.Count];
-        var scores = Enumerable.Repeat(float.NegativeInfinity, charPositions.Count).ToArray();
-        scores[0] = 0f;
-
-        for (var charStart = 0; charStart < charPositions.Count - 1; charStart++)
+        Rune[] runes = token.Text.EnumerateRunes().ToArray();
+        uint[][] references = TokenAlignment.References(token);
+        var scores = Enumerable.Repeat(float.NegativeInfinity, runes.Length + 1).ToArray();
+        var starts = new int[runes.Length + 1];
+        var pieces = new TrieNode?[runes.Length + 1];
+        scores[0] = 0;
+        for (int start = 0; start < runes.Length; start++)
         {
-            var prefix = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart]);
-            var matches = CommonPrefixSearch(prefix.ToString());
-
-            foreach (var node in matches)
+            bool single = false;
+            var node = Root;
+            for (int end = start; end < runes.Length; end++)
             {
-                var localScore = scores[charStart] + node.Score;
-                var charEnd = charStart + node.Length;
-
-                if (localScore > scores[charEnd])
+                if (!node.Children.TryGetValue(runes[end], out node)) break;
+                if (!node.End) continue;
+                if (end == start) single = true;
+                float score = scores[start] + node.Score;
+                if (score > scores[end + 1])
                 {
-                    var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charEnd]);
-                    results[charEnd] = new Node
-                    (
-                        text: t,
-                        score: localScore,
-                        index: node.Index,
-                        start: charStart,
-                        end: charEnd,
-                        referenceOffsets: token.ReferenceOffsets.Skip(charStart).Take(charEnd - charStart).ToArray()
-                    );
-
-                    scores[charEnd] = localScore;
+                    scores[end + 1] = score;
+                    starts[end + 1] = start;
+                    pieces[end + 1] = node;
                 }
             }
-
-            if (scores[charStart + 1] <= float.MinValue)
+            if (!single && scores[start] + unknownScore > scores[start + 1])
             {
-                var t = TokenizationUtils.SubstringByByteOffset(token.Text, charPositions[charStart], charPositions[charStart + 1]);
-                results[charStart + 1] = new Node
-                (
-                    text: t,
-                    score: float.MinValue,
-                    index: 0,
-                    start: charStart,
-                    end: charStart + 1,
-                    referenceOffsets: token.ReferenceOffsets.Skip(charStart).Take(1).ToArray()
-                );
-
-                scores[charStart + 1] = 0f;
+                scores[start + 1] = scores[start] + unknownScore;
+                starts[start + 1] = start;
+                pieces[start + 1] = null;
             }
         }
-
-        return results.ToList();
+        var result = new List<Node?>(runes.Length + 1) { null };
+        for (int end = 1; end <= runes.Length; end++)
+        {
+            int start = starts[end];
+            var piece = pieces[end];
+            uint[][] mapped = references.AsSpan(start, end - start).ToArray();
+            uint[] positions = mapped.SelectMany(r => r).Distinct().Order().ToArray();
+            result.Add(new Node(piece?.Text ?? runes[start].ToString(), scores[end], piece?.Index ?? 0,
+                start, end, positions) { ScalarReferences = mapped });
+        }
+        return result;
     }
 
-    /// <summary>
-    /// Decodes nodes backward to find the best sequence.
-    /// </summary>
-    /// <param name="nodes">The nodes to decode.</param>
-    /// <returns>A list of <see cref="Node"/> representing the best sequence.</returns>
     public List<Node> DecodeBackward(Node?[] nodes)
     {
-        var bestSequence = new List<Node>();
-        var nextNode = nodes.Last();
-
-        while (nextNode != null)
+        if (nodes.Length == 0) return new();
+        var result = new List<Node>();
+        for (Node? next = nodes[^1]; next != null; next = nodes[next.Start])
         {
-            bestSequence.Add(nextNode);
-            nextNode = nodes[nextNode.Start];
+            if (next.Start < 0 || next.Start >= next.End || next.End >= nodes.Length)
+                throw new ArgumentException("Invalid predecessor chain", nameof(nodes));
+            result.Add(next);
         }
-
-        bestSequence.Reverse();
-
-        return bestSequence;
+        result.Reverse();
+        return result;
     }
 
-    /// <summary>
-    /// Parses nodes to tokens.
-    /// </summary>
-    /// <param name="nodes">The nodes to parse.</param>
-    /// <returns>A list of <see cref="Token"/> representing the parsed tokens.</returns>
     public List<Token> ParseNodesToTokens(List<Node> nodes)
     {
-        var output = new List<Token>(nodes.Count + 1);
-        var isPrevUnknown = false;
-
-        foreach (var node in nodes)
+        var result = new List<Token>();
+        for (int i = 0; i < nodes.Count;)
         {
-            // Group unknown tokens
-            if (isPrevUnknown && (node.Index == 0))
+            var text = new StringBuilder();
+            var references = new List<uint[]>();
+            bool unknown = nodes[i].Index == 0;
+            do
             {
-                var prevToken = output.Last();
-                var text = new StringBuilder(prevToken.Text);
+                Node node = nodes[i++];
                 text.Append(node.Text);
-                var referenceOffsets = new List<uint>();
-                referenceOffsets.AddRange(node.ReferenceOffsets);
-                var consolidatedUnknown = new Token(text.ToString())
-                {
-                    Text = text.ToString(),
-                    Offset = new Offset(0, 0),
-                    ReferenceOffsets = referenceOffsets,
-                    Mask = Mask.Unknown,
-                };
-                output.RemoveAt(output.Count - 1);
-                output.Add(consolidatedUnknown);
-            }
-            else
-            {
-                output.Add(new Token(node.Text)
-                {
-                    Text = node.Text,
-                    Offset = new Offset(0, 0),
-                    ReferenceOffsets = node.ReferenceOffsets.ToList(),
-                    Mask = Mask.None,
-                });
-            }
-            isPrevUnknown = node.Index == 0;
+                references.AddRange(node.ScalarReferences ?? node.ReferenceOffsets.Select(p => new[] { p }).ToArray());
+            } while (unknown && i < nodes.Count && nodes[i].Index == 0);
+            var token = new Token(text.ToString()) { Mask = unknown ? Mask.Unknown : Mask.None };
+            TokenAlignment.Set(token, token.Text, references.ToArray());
+            result.Add(token);
         }
-
-        PopulateMasks(output, Constants.LowerOneEighthBlock);
-        return output;
+        PopulateMasks(result, TokenizationUtils.Metaspace);
+        return result;
     }
 
-    /// <summary>
-    /// Populates masks for tokens.
-    /// </summary>
-    /// <param name="tokens">The tokens to populate masks for.</param>
-    /// <param name="whitespaceToken">The whitespace token.</param>
     public void PopulateMasks(List<Token> tokens, char whitespaceToken)
     {
-        var previousMask = Mask.None;
-
-        foreach (var token in tokens)
+        var previous = Mask.None;
+        foreach (Token token in tokens)
         {
-            if (token.Text.Length == 1)
+            if (token.Mask is Mask.Unknown or Mask.Special) { previous = token.Mask; continue; }
+            if (Rune.TryGetRuneAt(token.Text, 0, out var rune) && rune.Utf16SequenceLength == token.Text.Length)
             {
-                var firstChar = token.Text.Last();
-
-                if (char.IsPunctuation(firstChar))
-                {
-                    token.Mask = Mask.Punctuation;
-                    previousMask = Mask.Punctuation;
-                    continue;
-                }
-
-                if (char.IsWhiteSpace(firstChar))
-                {
-                    token.Mask = Mask.Whitespace;
-                    previousMask = Mask.Punctuation;
-                    continue;
-                }
+                if (Rune.IsPunctuation(rune)) { token.Mask = previous = Mask.Punctuation; continue; }
+                if (Rune.IsWhiteSpace(rune)) { token.Mask = previous = Mask.Whitespace; continue; }
             }
-
-            if (!token.Text.StartsWith(whitespaceToken) && previousMask != Mask.Punctuation && previousMask != Mask.Whitespace)
-            {
-                token.Mask = Mask.Continuation;
-                previousMask = Mask.Continuation;
-            }
-            else
-            {
-                previousMask = Mask.None;
-            }
+            token.Mask = !token.Text.StartsWith(whitespaceToken) && previous is not Mask.Punctuation and not Mask.Whitespace
+                ? Mask.Continuation : Mask.None;
+            previous = token.Mask;
         }
     }
 }
