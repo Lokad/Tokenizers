@@ -1,8 +1,8 @@
 param([switch]$Check)
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$version = '3.36.2'
-$expectedHash = '9F4A9B0B762421233A9118605FD165E034F19BDCD5991027A9E9356F1341D696'
+$version = '3.33.5'
+$expectedHash = '7411B096BAD0C21E8C8FEAE40FE7C7248CA4694D228B658EB7838C58EC9C234D'
 $directory = Join-Path $repo "artifacts/protobuf-tools/$version"
 $package = Join-Path $repo "artifacts/google.protobuf.tools.$version.nupkg"
 [IO.Directory]::CreateDirectory((Split-Path -Parent $package)) | Out-Null

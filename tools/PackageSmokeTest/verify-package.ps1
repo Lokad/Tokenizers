@@ -16,6 +16,8 @@ $ConsumerDotNet = (Get-Command $ConsumerDotNet -CommandType Application -ErrorAc
 $project = Join-Path $repoRoot 'src/Lokad.Tokenizers.csproj'
 [xml]$projectXml = Get-Content -Raw -LiteralPath $project
 $version = [string]$projectXml.Project.PropertyGroup.Version
+# Keep this consumer pinned independently of central versioning to guard the compatibility floor.
+$protobufVersion = '3.33.5'
 $commit = (git rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot determine repository commit' }
 function Invoke-Checked([scriptblock]$Command) {
@@ -40,6 +42,7 @@ try {
         throw 'Package version/repository commit mismatch'
     }
     if (($nuspec.package.metadata.dependencies.group.dependency.id -join ',') -ne 'Google.Protobuf') { throw 'Unexpected runtime dependencies' }
+    Write-Host "Package Google.Protobuf dependency: $($nuspec.package.metadata.dependencies.group.dependency.version); consumer pin: [$protobufVersion]"
     if ($nuspec.package.metadata.icon -ne 'icon.png' -or $archive.GetEntry('icon.png').Length -gt 1MB) { throw 'Invalid package icon' }
     $iconStream = $archive.GetEntry('icon.png').Open()
     try {
@@ -67,7 +70,7 @@ $frameworks = $ConsumerFrameworks -join ';'
 @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFrameworks>$frameworks</TargetFrameworks><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors><ImportDirectoryBuildProps>false</ImportDirectoryBuildProps><ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets><ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup>
-  <ItemGroup><PackageReference Include="Lokad.Tokenizers" Version="[$version]" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Lokad.Tokenizers" Version="[$version]" /><PackageReference Include="Google.Protobuf" Version="[$protobufVersion]" /></ItemGroup>
 </Project>
 "@ | Set-Content -LiteralPath (Join-Path $consumer 'Consumer.csproj') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Program.cs') -Destination (Join-Path $consumer 'Program.cs')
@@ -84,7 +87,7 @@ try {
     $legacy = Join-Path $repoRoot 'test/Fixture/xlm-roberta-large-finetuned-conll03-english-sentencepiece.bpe.model'
     Invoke-Checked { & $ConsumerDotNet build $consumerProject -c Release --no-restore --tl:off --nologo -v minimal }
     foreach ($framework in $ConsumerFrameworks) {
-        Invoke-Checked { & $ConsumerDotNet (Join-Path $consumer "bin/Release/$framework/Consumer.dll") $version $Tokenizer $symbols $commit $legacy }
+        Invoke-Checked { & $ConsumerDotNet (Join-Path $consumer "bin/Release/$framework/Consumer.dll") $version $Tokenizer $symbols $commit $legacy $protobufVersion }
         Write-Host "PASS $framework package consumer"
     }
 } finally { Pop-Location }

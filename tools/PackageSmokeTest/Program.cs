@@ -4,10 +4,12 @@ using System.Text.Json;
 using Lokad.Tokenizers.Tokenizer;
 using Lokad.Tokenizers.Vocab;
 
-if (args.Length != 5) throw new ArgumentException("Expected version, tokenizer, symbol package, commit, and XLM-R fixture");
+if (args.Length != 6) throw new ArgumentException("Expected version, tokenizer, symbol package, commit, XLM-R fixture, and Protobuf version");
 string version = args[0], commit = args[3];
 if (typeof(GemmaTokenizer).Assembly.GetName().Version?.ToString(3) != version)
     throw new InvalidOperationException("Unexpected package assembly version");
+string? protobufVersion = typeof(Google.Protobuf.IMessage).Assembly.GetName().Version?.ToString(3);
+if (protobufVersion != args[5]) throw new InvalidOperationException("Unexpected Google.Protobuf runtime version: " + protobufVersion);
 var tokenizer = new GemmaTokenizer(args[1]);
 if (tokenizer.TokenizerSha256 != "4d777ef5bdc1aa36227abdfb77c3e49e7b9c892d16e1b6bda41c393504828be4")
     throw new InvalidDataException("Changed tokenizer asset");
@@ -70,4 +72,4 @@ foreach (var handle in reader.CustomDebugInformation)
     catch (JsonException) { }
 }
 if (!sourceLink) throw new InvalidDataException("Portable PDB has no matching GitHub SourceLink mapping");
-Console.WriteLine($"PASS isolated package consumer, XLM-R/Gemma APIs, and SourceLink: {version} on .NET {Environment.Version}");
+Console.WriteLine($"PASS isolated package consumer, XLM-R/Gemma APIs, and SourceLink: {version} on .NET {Environment.Version} with Google.Protobuf {protobufVersion}");

@@ -61,7 +61,7 @@ $taskPython = if ($IsWindows) { "artifacts/python/Scripts/python.exe" } else { "
 
 Gemma qualification checks 754 single-sequence cases with and without automatic special tokens and 108 padded batches. XLM-R qualification checks 310 legacy/Unicode cases, including lowercase and complete source spans. The oracles load no managed code. Results remain under ignored `artifacts/gemma/` and `artifacts/xlm/`. [Fixture provenance and regeneration](test/Fixture/README.md) describe the pinned model and legacy expectations.
 
-Generate protobuf bindings from the single schema with `./eng/generate-protobuf.ps1`. Pass `-Check` to verify the checked-in output using a pinned compiler and checksum. Run the allocation and special-token benchmark with:
+Generate protobuf bindings from the single schema with `./eng/generate-protobuf.ps1`. Pass `-Check` to verify the checked-in output using a pinned compiler and checksum. Both the compiler and the minimum Google.Protobuf runtime version are 3.33.5. Run the allocation and special-token benchmark with:
 
 ```powershell
 dotnet run --project tools/TokenizerBenchmarks -c Release -- models/embeddinggemma-2/tokenizer.json
@@ -74,7 +74,7 @@ dotnet pack src/Lokad.Tokenizers.csproj -c Release --no-build --no-restore --tl:
 ./tools/PackageSmokeTest/verify-package.ps1
 ```
 
-Local packages and portable symbols go under `artifacts/nuget/`. The smoke check inspects dependencies, symbols, SourceLink, and the 128x128 icon, then runs a consumer outside the checkout with a fresh NuGet cache. With both SDKs/runtimes installed, pass `-ConsumerFrameworks net10.0,net11.0` in PowerShell to test both. Initial .NET 11 qualification used RC3; CI resolves the latest SDK from Microsoft's .NET 11 release metadata, including prereleases.
+Local packages and portable symbols go under `artifacts/nuget/`. The smoke check inspects dependencies, symbols, SourceLink, and the 128x128 icon, then runs a consumer outside the checkout with a fresh NuGet cache and an exact Google.Protobuf 3.33.5 reference. It verifies that this exact runtime is loaded while exercising XLM-R and Gemma. With both SDKs/runtimes installed, pass `-ConsumerFrameworks net10.0,net11.0` in PowerShell to test both. Initial .NET 11 qualification used RC3; CI resolves the latest SDK from Microsoft's .NET 11 release metadata, including prereleases.
 
 The Windows/Ubuntu CI workflow skips Markdown-only changes and runs locked restore, Release build, tests, explicit packaging, both independent tokenization lanes, and both package consumers. CI packages go under `artifacts/dev/nuget/`. The consumer check uses `-SkipPack` to verify the package produced by the pack stage.
 

@@ -4,6 +4,7 @@
 
 - Target .NET 10 and use the XML solution format.
 - Verify NuGet consumption on .NET 10 and .NET 11 (initial qualification on RC3).
+- Keep the Google.Protobuf dependency floor and generated bindings at 3.33.5, verified by an isolated consumer pinned to that runtime.
 - Replace the package icon with a simpler tokenizer motif at 128×128.
 - Add local-file Gemma BPE encoding and right-padded batch inputs.
 - Qualify Gemma IDs against the pinned Python tokenizer.

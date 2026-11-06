@@ -23,7 +23,7 @@ package sentencepiece;
 
 // TrainerSpec encodes a various parameters for SentencePiece training.
 message TrainerSpec {
-  ///////////////////////////////////////////////////////////////////
+  // ----------------------------------------------------------------
   // General parameters
   //
   // Input corpus files.
@@ -64,7 +64,7 @@ message TrainerSpec {
   // Size of self-test samples, which are encoded in the model file.
   optional int32 self_test_sample_size = 6 [default = 0];
 
-  ///////////////////////////////////////////////////////////////////
+  // ----------------------------------------------------------------
   // Training parameters.
   //
   // Uses characters which cover the corpus with the ratio of `chars_coverage`.
@@ -110,7 +110,7 @@ message TrainerSpec {
   // Number of EM sub iterations.
   optional int32 num_sub_iterations = 17 [default = 2];
 
-  ///////////////////////////////////////////////////////////////////
+  // ----------------------------------------------------------------
   // SentencePiece parameters which control the shapes of sentence piece.
   //
   // Maximum length of sentencepiece.
@@ -144,7 +144,7 @@ message TrainerSpec {
   // Split all digits (0-9) into separate pieces.
   optional bool split_digits = 25 [default = false];
 
-  ///////////////////////////////////////////////////////////////////
+  // ----------------------------------------------------------------
   // Vocabulary management
   //
   // Defines control symbols used as an indicator to
@@ -188,7 +188,7 @@ message TrainerSpec {
   // if model type is either CHAR or WORD
   optional bool use_all_vocab = 34 [default = false];
 
-  ///////////////////////////////////////////////////////////////////
+  // ----------------------------------------------------------------
   // Reserved special meta tokens.
   // * -1 is not used.
   // * unk_id must not be -1.
