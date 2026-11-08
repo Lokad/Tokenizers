@@ -7,30 +7,85 @@ namespace Lokad.Tokenizers.Vocab.Tests;
 
 public sealed class VocabularyContractTests
 {
+    static BaseVocab Basic() => new(new(){["[UNK]"]=0,["a"]=1},new());
+
     [Fact]
-    public void VocabularyOwnsItsInputsAndExposesReadOnlyViews()
+    public void VocabularyCopiesCallerOwnedInputs()
     {
-        var values = new Dictionary<string, long> { ["[UNK]"] = 0, ["a"] = 1 };
-        var mapping = new SpecialTokenMap();
-        var vocabulary = new BaseVocab(values, mapping);
-        values["a"] = 99;
-        mapping.UnkToken = "changed";
-        vocabulary.SpecialTokenMap.UnkToken = "changed again";
-        Assert.Equal(1, vocabulary.TokenToId("a"));
-        Assert.Equal("[UNK]", vocabulary.GetUnknownValue());
-        Assert.Throws<NotSupportedException>(() => ((IDictionary<string, long>)vocabulary.Values).Add("b", 2));
+        var values=new Dictionary<string,long>{["[UNK]"]=0,["a"]=1};
+        var mapping=new SpecialTokenMap();
+        var vocabulary=new BaseVocab(values,mapping);
+        values["a"]=99;mapping.UnkToken="changed";
+        vocabulary.SpecialTokenMap.UnkToken="another change";
+        Assert.Equal(1,vocabulary.TokenToId("a"));
+        Assert.Equal("[UNK]",vocabulary.GetUnknownValue());
+    }
+
+    [Fact]
+    public void DictionaryViewsRejectDirectWrites()
+    {
+        var vocabulary=Basic();
+        Assert.Throws<NotSupportedException>(()=>((IDictionary<string,long>)vocabulary.Values).Add("b",2));
+        Assert.Equal(2,vocabulary.Values.Count);
+    }
+
+    [Fact]
+    public void AdditionsPreserveExistingIdsAndInverseViews()
+    {
+        var vocabulary=Basic();
         vocabulary.AddExtraIds(1);
-        long first = vocabulary.TokenToId("<extra_id_0>");
+        long first=vocabulary.TokenToId("<extra_id_0>");
+        vocabulary.AddExtraIds(1);vocabulary.AddExtraIds(2);
+        vocabulary.AddTokens(new[]{"b","b","a"});
+        Assert.Equal(first,vocabulary.TokenToId("<extra_id_0>"));
+        Assert.Equal(vocabulary.Values.Count,vocabulary.Indices.Count);
+        foreach(var entry in vocabulary.Values)Assert.Equal(entry.Key,vocabulary.IdToToken(entry.Value));
+    }
+
+    [Fact]
+    public void InvalidAdditionBatchDoesNotPartiallyMutateVocabulary()
+    {
+        var vocabulary=Basic();
+        Assert.Throws<ArgumentException>(()=>vocabulary.AddTokens(new[]{"valid",""}));
+        Assert.False(vocabulary.Values.ContainsKey("valid"));
+        Assert.Equal(2,vocabulary.Values.Count);
+    }
+
+    [Fact]
+    public void AdditionOverflowDoesNotPartiallyMutateVocabulary()
+    {
+        var vocabulary=new BaseVocab(new(){["[UNK]"]=long.MaxValue-1},new());
+        Assert.Throws<OverflowException>(()=>vocabulary.AddTokens(new[]{"a","b"}));
+        Assert.Single(vocabulary.Values);
+        vocabulary.AddTokens(new[]{"a"});
+        Assert.Equal(long.MaxValue,vocabulary.TokenToId("a"));
+        vocabulary.AddTokens(new[]{"a"}); // A no-op remains valid at the ID limit.
+    }
+
+    [Fact]
+    public void ExtraIdsRejectNegativeCounts() => Assert.Throws<ArgumentOutOfRangeException>(()=>Basic().AddExtraIds(-1));
+
+    [Fact]
+    public void AdditionsChangeDictionariesWithoutRegisteringLiteralSentinels()
+    {
+        var vocabulary=Basic();
+        var tokenizer=new BaseTokenizer<BaseVocab>(vocabulary,false,false);
+        vocabulary.AddTokens(new[]{"hello"});
+        Assert.Equal(new[]{vocabulary.TokenToId("hello")},tokenizer.Encode("hello",null,10,TruncationStrategy.LongestFirst,0).TokenIds);
         vocabulary.AddExtraIds(1);
-        vocabulary.AddExtraIds(2);
-        vocabulary.AddTokens(new[] { "b", "b", "a" });
-        Assert.Equal(first, vocabulary.TokenToId("<extra_id_0>"));
-        Assert.Equal(vocabulary.Values.Count, vocabulary.Indices.Count);
-        foreach (var entry in vocabulary.Values) Assert.Equal(entry.Key, vocabulary.IdToToken(entry.Value));
-        int count = vocabulary.Values.Count;
-        Assert.Throws<ArgumentException>(() => vocabulary.AddTokens(new[] { "valid", "" }));
-        Assert.Equal(count, vocabulary.Values.Count);
-        Assert.Throws<ArgumentOutOfRangeException>(() => vocabulary.AddExtraIds(-1));
+        Assert.False(vocabulary.SpecialValues.ContainsKey("<extra_id_0>"));
+        Assert.DoesNotContain(vocabulary.TokenToId("<extra_id_0>"),tokenizer.Encode("<extra_id_0>",null,20,TruncationStrategy.LongestFirst,0).TokenIds);
+    }
+
+    [Fact]
+    public void XlmDictionaryAdditionsDoNotModifySegmentation()
+    {
+        var tokenizer=new XLMRobertaTokenizer(TestUtils.XlmRobertaFixture(),false);
+        var before=tokenizer.Encode("qzx🧪new",null,128,TruncationStrategy.LongestFirst,0).TokenIds;
+        tokenizer.Vocab.AddTokens(new[]{"qzx🧪new"});
+        var after=tokenizer.Encode("qzx🧪new",null,128,TruncationStrategy.LongestFirst,0).TokenIds;
+        Assert.Equal(before,after);
+        Assert.DoesNotContain(tokenizer.Vocab.TokenToId("qzx🧪new"),after);
     }
 
     [Fact]
@@ -72,6 +127,8 @@ public sealed class VocabularyContractTests
     [InlineData("{\"unk_token\":null}")]
     [InlineData("{\"unk_token\":\"\"}")]
     [InlineData("{\"unk_token\":\"x\",\"UnkToken\":\"y\"}")]
+    [InlineData("{\"unk_token\":{\"content\":\"first\",\"content\":\"last\"}}")]
+    [InlineData("{\"unk_token\":{\"content\":\"x\",\"special\":true,\"special\":true}}")]
     public void InvalidMappingFailsExplicitly(string json) =>
         WithFile(json, path => Assert.Throws<InvalidDataException>(() => VocabHelper.ReadSpecialTokenMappingFile(path)));
 

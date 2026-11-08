@@ -10,6 +10,7 @@ public class BaseVocab : IVocab
     private readonly Dictionary<long, string> indices;
     private readonly SpecialTokenMap specialTokens;
     private readonly object mutation = new();
+    private long maximumId;
     public IReadOnlyDictionary<string, long> Values { get; }
     public IReadOnlyDictionary<long, string> Indices { get; }
     /// <summary>A copy of the special-token configuration.</summary>
@@ -27,6 +28,7 @@ public class BaseVocab : IVocab
         if (values.Values.Distinct().Count() != values.Count)
             throw new ArgumentException("Vocabulary IDs must be unique", nameof(values));
         indices = this.values.ToDictionary(p => p.Value, p => p.Key);
+        maximumId = this.values.Values.DefaultIfEmpty(-1).Max();
         specialTokens = specialTokenMap.Copy();
         var specials = new Dictionary<string, long>(StringComparer.Ordinal);
         specialTokens.RegisterSpecialValues(this.values, specials);
@@ -50,7 +52,8 @@ public class BaseVocab : IVocab
     public string IdToToken(long id) => indices.TryGetValue(id, out string? token) ? token : GetUnknownValue();
     public List<long> ConvertTokensToIds(IEnumerable<string> tokens) => tokens.Select(TokenToId).ToList();
 
-    /// <summary>Ensure that extra_id_0 through extra_id_(numExtraIds-1) exist. Repeated calls are safe.</summary>
+    /// <summary>Ensure dictionary entries extra_id_0 through extra_id_(numExtraIds-1) exist. Repeated calls are safe.</summary>
+    /// <remarks>Entries are ordinary vocabulary entries, not registered literals or special tokens.</remarks>
     public void AddExtraIds(long numExtraIds)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(numExtraIds);
@@ -58,7 +61,8 @@ public class BaseVocab : IVocab
         AddTokens(Enumerable.Range(0, (int)numExtraIds).Select(i => $"<extra_id_{i}>"));
     }
 
-    /// <summary>Add new tokens in enumeration order without changing existing IDs.</summary>
+    /// <summary>Add dictionary entries in enumeration order without changing existing IDs.</summary>
+    /// <remarks>This does not change token splitting, literal recognition, or a model's segmentation trie.</remarks>
     public void AddTokens(IEnumerable<string> tokens)
     {
         ArgumentNullException.ThrowIfNull(tokens);
@@ -71,11 +75,11 @@ public class BaseVocab : IVocab
                 ArgumentException.ThrowIfNullOrEmpty(token);
                 if (!values.ContainsKey(token) && seen.Add(token)) additions.Add(token);
             }
-            long maximum = values.Values.DefaultIfEmpty(-1).Max();
-            _ = checked(maximum + additions.Count);
+            if (additions.Count == 0) return;
+            _ = checked(maximumId + additions.Count);
             foreach (string token in additions)
             {
-                long id = ++maximum;
+                long id = ++maximumId;
                 values.Add(token, id);
                 indices.Add(id, token);
             }

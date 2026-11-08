@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Lokad.Tokenizers.Exceptions;
+using Lokad.Tokenizers.Tokenizer;
 
 namespace Lokad.Tokenizers.Vocab;
 
@@ -16,11 +17,30 @@ public static class VocabHelper
             .ToDictionary(p => p.text, p => (long)p.id, StringComparer.Ordinal);
     }
 
+    /// <summary>Read nonempty token names and unique nonnegative Int64 IDs; duplicate names are rejected.</summary>
     public static Dictionary<string, long> ReadJsonFile(string path)
     {
         CheckFile(path);
-        return JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(path))
-            ?? throw new InvalidDataException("Vocabulary JSON must be an object");
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllBytes(path));
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                throw new InvalidDataException("Vocabulary JSON must be an object");
+            var values = new Dictionary<string, long>(StringComparer.Ordinal);
+            var ids = new HashSet<long>();
+            foreach (var entry in document.RootElement.EnumerateObject())
+            {
+                string name = JsonAsset.Name(entry, "vocabulary");
+                if (name.Length == 0 || entry.Value.ValueKind != JsonValueKind.Number ||
+                    !entry.Value.TryGetInt64(out long id) || id < 0)
+                    throw new InvalidDataException("Invalid vocabulary name/ID: " + name);
+                if (!values.TryAdd(name, id))
+                    throw new InvalidDataException("Duplicate vocabulary token: " + name);
+                if (!ids.Add(id)) throw new InvalidDataException("Duplicate vocabulary ID: " + id);
+            }
+            return values;
+        }
+        catch (JsonException error) { throw new InvalidDataException("Invalid vocabulary JSON at " + error.Path, error); }
     }
 
     public static ModelProto OpenProtobufFile(string path)
@@ -42,19 +62,20 @@ public static class VocabHelper
     {
         CheckFile(path);
         ArgumentException.ThrowIfNullOrEmpty(defaultUnknownToken);
-        using var document = JsonDocument.Parse(File.ReadAllBytes(path));
+        using var document = JsonAsset.Parse(File.ReadAllBytes(path));
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             throw new InvalidDataException("Special-token mapping must be a JSON object");
         var result = new SpecialTokenMap { UnkToken = defaultUnknownToken };
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var property in document.RootElement.EnumerateObject())
         {
-            string name = property.Name switch
+            string rawName = JsonAsset.Name(property, "special_tokens");
+            string name = rawName switch
             {
                 "UnkToken" => "unk_token", "PadToken" => "pad_token", "BosToken" => "bos_token",
                 "SepToken" => "sep_token", "ClsToken" => "cls_token", "EosToken" => "eos_token",
                 "MaskToken" => "mask_token", "AdditionalSpecialTokens" => "additional_special_tokens",
-                _ => property.Name
+                _ => rawName
             };
             if (!seen.Add(name)) throw new InvalidDataException("Duplicate special-token field: " + name);
             if (name == "additional_special_tokens")
@@ -62,12 +83,12 @@ public static class VocabHelper
                 if (property.Value.ValueKind != JsonValueKind.Array)
                     throw new InvalidDataException("additional_special_tokens must be an array");
                 foreach (JsonElement entry in property.Value.EnumerateArray())
-                    if (!result.AdditionalSpecialTokens.Add(ReadToken(entry)
+                    if (!result.AdditionalSpecialTokens.Add(ReadToken(entry, "additional_special_tokens[]")
                         ?? throw new InvalidDataException("Additional tokens must not be null")))
                         throw new InvalidDataException("Duplicate additional special token");
                 continue;
             }
-            string? token = ReadToken(property.Value);
+            string? token = ReadToken(property.Value, name);
             switch (name)
             {
                 case "unk_token": result.UnkToken = token ?? throw new InvalidDataException("Unknown token must not be null"); break;
@@ -77,34 +98,36 @@ public static class VocabHelper
                 case "cls_token": result.ClsToken = token; break;
                 case "eos_token": result.EosToken = token; break;
                 case "mask_token": result.MaskToken = token; break;
-                default: throw new InvalidDataException("Unknown special-token field: " + property.Name);
+                default: throw new InvalidDataException("Unknown special-token field: " + rawName);
             }
         }
         return result;
     }
 
-    private static string? ReadToken(JsonElement element)
+    private static string? ReadToken(JsonElement element, string path)
     {
         if (element.ValueKind == JsonValueKind.Null) return null;
         if (element.ValueKind == JsonValueKind.Object)
         {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var flag in element.EnumerateObject())
             {
-                if (flag.Name is "content" or "__type") continue;
-                if (flag.Name is "single_word" or "lstrip" or "rstrip" or "normalized")
+                string name = JsonAsset.Name(flag, path);
+                if (!seen.Add(name)) throw new InvalidDataException("Duplicate token object field: " + path + "." + name);
+                if (name is "content" or "__type") continue;
+                if (name is "single_word" or "lstrip" or "rstrip" or "normalized")
                 {
                     if (flag.Value.ValueKind != JsonValueKind.False)
-                        throw new NotSupportedException("Only literal special-token matching is supported: " + flag.Name);
+                        throw new NotSupportedException("Only literal special-token matching is supported: " + name);
                 }
-                else if (flag.Name != "special" || flag.Value.ValueKind != JsonValueKind.True)
-                    throw new InvalidDataException("Unsupported token object field: " + flag.Name);
+                else if (name != "special" || flag.Value.ValueKind != JsonValueKind.True)
+                    throw new InvalidDataException("Unsupported token object field: " + name);
             }
             if (!element.TryGetProperty("content", out element))
                 throw new InvalidDataException("A token object must have content");
+            path += ".content";
         }
-        if (element.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(element.GetString()))
-            throw new InvalidDataException("A special token must be a nonempty string");
-        return element.GetString();
+        return JsonAsset.String(element, path);
     }
 
     public static void RegisterAsSpecialValue(string token, Dictionary<string, long> values, Dictionary<string, long> specialValues)

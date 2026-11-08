@@ -72,7 +72,7 @@ public sealed class GemmaTokenizerTests
     }
 
     [Fact]
-    public void BatchRightPads_AndAcceptsExactLimitWithoutTruncation()
+    public void BatchRightPadsRowsAndMasksAtTheExactLimit()
     {
         var tokenizer = Create();
         var batch = tokenizer.EncodeBatch(new[] { "", "a c" }, 5);
@@ -81,10 +81,22 @@ public sealed class GemmaTokenizerTests
         Assert.Equal(new[] { 2, 5 }, batch.TokenCounts);
         Assert.Equal(new long[] { 2, 1, 0, 0, 0, 2, 10, 13, 12, 1 }, batch.InputIds);
         Assert.Equal(new long[] { 1, 1, 0, 0, 0, 1, 1, 1, 1, 1 }, batch.AttentionMask);
-        Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(new[] { "a c" }, 4));
-        Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(Array.Empty<string>(), 5));
-        Assert.Throws<ArgumentOutOfRangeException>(() => tokenizer.EncodeBatch(new[] { "" }, 1));
     }
+
+    [Fact]
+    public void BatchRejectsOverflowWithoutTruncation() =>
+        Assert.Throws<ArgumentException>(() => Create().EncodeBatch(new[] { "a c" }, 4));
+
+    [Fact]
+    public void BatchRejectsAnEmptyRowCollection() =>
+        Assert.Throws<ArgumentException>(() => Create().EncodeBatch(Array.Empty<string>(), 5));
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void BatchLimitMustAccommodateBosAndEos(int maximum) =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => Create().EncodeBatch(new[] { "" }, maximum));
 
     [Fact]
     public void InvalidUtf16FailsExplicitly()
@@ -95,15 +107,28 @@ public sealed class GemmaTokenizerTests
     }
 
     [Fact]
-    public void OutputsAreOwned_AndSharedTokenizerIsConcurrent()
+    public void EncodingOutputsCanBeMutatedIndependently()
     {
         var tokenizer = Create();
         long[] expected = tokenizer.Encode("a<mask>abc 🧪");
-        Parallel.For(0, 32, _ => Assert.Equal(expected, tokenizer.Encode("a<mask>abc 🧪")));
         long[] changed = tokenizer.Encode("a<mask>abc 🧪");
         Array.Fill(changed, -1);
         Assert.Equal(expected, tokenizer.Encode("a<mask>abc 🧪"));
-        Assert.Equal(64, tokenizer.TokenizerSha256.Length);
+    }
+
+    [Fact]
+    public void ImmutableEncoderSupportsConcurrentCallers()
+    {
+        var tokenizer=Create();
+        long[] expected=tokenizer.Encode("a<mask>abc 🧪");
+        Parallel.For(0,32,_=>Assert.Equal(expected,tokenizer.Encode("a<mask>abc 🧪")));
+    }
+
+    [Fact]
+    public void AssetHashIdentifiesTheExactTokenizerFile()
+    {
+        string expected=Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(FixtureJson())));
+        Assert.Equal(expected,Create().TokenizerSha256);
     }
 
     [Fact]
@@ -135,11 +160,17 @@ public sealed class GemmaTokenizerTests
     }
 
     [Fact]
-    public void TokenLimitsAllowMergesAndRejectLongInputsWithoutBpeAllocation()
+    public void TokenLimitsUseTheFinalMergedCount()
     {
         var tokenizer = Create();
         Assert.Equal(new long[] { 2,24,1 }, tokenizer.EncodeBatch(new[] { "aaa" }, 3).InputIds);
         Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(new[] { "aaaa" }, 3));
+    }
+
+    [Fact]
+    public void ImpossibleLongInputLimitRejectsBeforeBpeStateAllocation()
+    {
+        var tokenizer=Create();
         string text = new('a', 200_000);
         long before = GC.GetAllocatedBytesForCurrentThread();
         Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(new[] { text }, 2));

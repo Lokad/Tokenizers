@@ -95,13 +95,13 @@ public interface IVocab
     List<long> ConvertTokensToIds(IEnumerable<string> tokens);
 
     /// <summary>
-    /// Adds extra IDs to the vocabulary.
+    /// Ensures ordinary dictionary entries for extra IDs. This does not register literal or special-token matching.
     /// </summary>
     /// <param name="numExtraIds">The number of extra IDs to add.</param>
     void AddExtraIds(long numExtraIds);
 
     /// <summary>
-    /// Adds a collection of tokens to the vocabulary.
+    /// Adds dictionary entries without changing tokenizer splitting or model segmentation rules.
     /// </summary>
     /// <param name="tokens">The tokens to add.</param>
     void AddTokens(IEnumerable<string> tokens);

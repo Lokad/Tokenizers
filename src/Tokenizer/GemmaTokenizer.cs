@@ -12,9 +12,8 @@ namespace Lokad.Tokenizers.Tokenizer;
 /// </summary>
 public sealed class GemmaTokenizer
 {
-    readonly Dictionary<string, int> vocabulary = new(StringComparer.Ordinal);
+    readonly Dictionary<Rune, int> characters = new();
     readonly Dictionary<(int Left, int Right), Merge> merges = new();
-    readonly List<(string Text, int Id)> added = new();
     readonly int[] bytes = new int[256];
     readonly LiteralTokenMatcher addedTokens;
     readonly int maximumTokenBytes;
@@ -23,7 +22,7 @@ public sealed class GemmaTokenizer
     public string TokenizerSha256 { get; }
 
     /// <summary>Number of entries in the BPE vocabulary.</summary>
-    public int VocabularySize => vocabulary.Count;
+    public int VocabularySize { get; }
 
     /// <summary>Load a local tokenizer.json. Unsupported pipeline settings fail explicitly.</summary>
     public GemmaTokenizer(string tokenizerPath)
@@ -31,80 +30,99 @@ public sealed class GemmaTokenizer
         ArgumentException.ThrowIfNullOrEmpty(tokenizerPath);
         byte[] data = File.ReadAllBytes(tokenizerPath);
         TokenizerSha256 = Convert.ToHexStringLower(SHA256.HashData(data));
-        using var document = JsonDocument.Parse(data);
-        JsonElement root = document.RootElement, model = root.GetProperty("model");
-        Require(root.GetProperty("version").GetString() == "1.0", "JSON version");
-        Require(IsNull(root, "truncation") && IsNull(root, "padding"), "preconfigured truncation/padding");
-        Require(model.GetProperty("type").GetString() == "BPE" && IsNull(model, "dropout") &&
-            IsNull(model, "continuing_subword_prefix") && IsNull(model, "end_of_word_suffix") &&
-            model.GetProperty("unk_token").GetString() == "<unk>" &&
-            model.GetProperty("fuse_unk").GetBoolean() && model.GetProperty("byte_fallback").GetBoolean() &&
-            !model.GetProperty("ignore_merges").GetBoolean(), "BPE settings");
-        JsonElement normalizer = root.GetProperty("normalizer"), split = root.GetProperty("pre_tokenizer");
-        Require(normalizer.GetProperty("type").GetString() == "Replace" &&
-            normalizer.GetProperty("pattern").GetProperty("String").GetString() == " " &&
-            normalizer.GetProperty("content").GetString() == "\u2581", "space normalizer");
-        Require(split.GetProperty("type").GetString() == "Split" &&
-            split.GetProperty("pattern").GetProperty("String").GetString() == " " &&
-            split.GetProperty("behavior").GetString() == "MergedWithPrevious" &&
-            !split.GetProperty("invert").GetBoolean(), "pre-tokenizer");
+        using var document = JsonAsset.Parse(data);
+        var root = JsonAsset.Object(document.RootElement, "tokenizer");
+        var model = JsonAsset.Object(JsonAsset.Required(root, "model", "tokenizer"), "model");
+        Require(JsonAsset.String(root, "version", "tokenizer") == "1.0", "JSON version");
+        Require(IsNull(root, "truncation", "tokenizer") && IsNull(root, "padding", "tokenizer"), "preconfigured truncation/padding");
+        Require(JsonAsset.String(model, "type", "model") == "BPE" && IsNull(model, "dropout", "model") &&
+            IsNull(model, "continuing_subword_prefix", "model") && IsNull(model, "end_of_word_suffix", "model") &&
+            JsonAsset.String(model, "unk_token", "model") == "<unk>" &&
+            JsonAsset.Bool(model, "fuse_unk", "model") && JsonAsset.Bool(model, "byte_fallback", "model") &&
+            !JsonAsset.Bool(model, "ignore_merges", "model"), "BPE settings");
+        var normalizer = JsonAsset.Object(JsonAsset.Required(root, "normalizer", "tokenizer"), "normalizer");
+        var split = JsonAsset.Object(JsonAsset.Required(root, "pre_tokenizer", "tokenizer"), "pre_tokenizer");
+        Require(JsonAsset.String(normalizer, "type", "normalizer") == "Replace" &&
+            Pattern(normalizer, "normalizer") == " " && JsonAsset.String(normalizer, "content", "normalizer") == "\u2581", "space normalizer");
+        Require(JsonAsset.String(split, "type", "pre_tokenizer") == "Split" &&
+            Pattern(split, "pre_tokenizer") == " " && JsonAsset.String(split, "behavior", "pre_tokenizer") == "MergedWithPrevious" &&
+            !JsonAsset.Bool(split, "invert", "pre_tokenizer"), "pre-tokenizer");
 
         var ids = new HashSet<int>();
-        foreach (var entry in model.GetProperty("vocab").EnumerateObject())
+        var vocabulary = new Dictionary<string, int>(StringComparer.Ordinal);
+        // Vocabulary duplicates are checked by TryAdd while constructing the lookup.
+        foreach (var entry in JsonAsset.Object(JsonAsset.Required(model, "vocab", "model"), "model.vocab", checkDuplicates: false).EnumerateObject())
         {
-            int id = entry.Value.GetInt32();
-            if (entry.Name.Length == 0 || id < 0 || !ids.Add(id) || !vocabulary.TryAdd(entry.Name, id))
-                throw new InvalidDataException("Invalid or duplicate vocabulary entry");
+            string text = JsonAsset.Name(entry, "model.vocab");
+            int id = JsonAsset.Int(entry.Value, "model.vocab");
+            if (text.Length == 0 || id < 0 || !ids.Add(id) || !vocabulary.TryAdd(text, id))
+                throw new InvalidDataException("Invalid or duplicate model.vocab entry: " + text);
+            maximumTokenBytes = Math.Max(maximumTokenBytes, Encoding.UTF8.GetByteCount(text));
+            if (Rune.DecodeFromUtf16(text, out Rune rune, out int consumed) == OperationStatus.Done && consumed == text.Length)
+                characters.Add(rune, id);
         }
+        VocabularySize = vocabulary.Count;
         Require(vocabulary.GetValueOrDefault("<pad>", -1) == 0 && vocabulary.GetValueOrDefault("<eos>", -1) == 1 &&
-            vocabulary.GetValueOrDefault("<bos>", -1) == 2 && vocabulary.GetValueOrDefault("<unk>", -1) == 3,
-            "PAD/EOS/BOS/UNK IDs");
-        maximumTokenBytes = vocabulary.Keys.Max(token => Encoding.UTF8.GetByteCount(token));
+            vocabulary.GetValueOrDefault("<bos>", -1) == 2 && vocabulary.GetValueOrDefault("<unk>", -1) == 3, "PAD/EOS/BOS/UNK IDs");
         for (int value = 0; value < bytes.Length; value++)
         {
             if (!vocabulary.TryGetValue("<0x" + value.ToString("X2", CultureInfo.InvariantCulture) + ">", out bytes[value]))
-                throw new InvalidDataException("Missing UTF-8 byte fallback token");
+                throw new InvalidDataException("Missing model.vocab UTF-8 byte fallback token: <0x" + value.ToString("X2", CultureInfo.InvariantCulture) + ">");
         }
         int rank = 0;
-        foreach (var pair in model.GetProperty("merges").EnumerateArray())
+        foreach (var pair in JsonAsset.Array(JsonAsset.Required(model, "merges", "model"), "model.merges").EnumerateArray())
         {
-            Require(pair.ValueKind == JsonValueKind.Array && pair.GetArrayLength() == 2, "BPE merge format");
-            string left = pair[0].GetString()!, right = pair[1].GetString()!;
+            JsonAsset.Array(pair, "model.merges[]");
+            Require(pair.GetArrayLength() == 2, "BPE merge format");
+            string left = JsonAsset.String(pair[0], "model.merges[][0]"), right = JsonAsset.String(pair[1], "model.merges[][1]");
             if (!vocabulary.TryGetValue(left, out int a) || !vocabulary.TryGetValue(right, out int b) ||
                 !vocabulary.TryGetValue(left + right, out int merged) || !merges.TryAdd((a, b), new Merge(rank++, merged)))
-                throw new InvalidDataException("Invalid or duplicate BPE merge");
+                throw new InvalidDataException("Invalid or duplicate model.merges entry: " + left + " + " + right);
         }
-        foreach (var token in root.GetProperty("added_tokens").EnumerateArray())
+        var added = new List<(string Text, int Id)>();
+        foreach (var entry in JsonAsset.Array(JsonAsset.Required(root, "added_tokens", "tokenizer"), "added_tokens").EnumerateArray())
         {
-            Require(!token.GetProperty("single_word").GetBoolean() && !token.GetProperty("lstrip").GetBoolean() &&
-                !token.GetProperty("rstrip").GetBoolean() && !token.GetProperty("normalized").GetBoolean() &&
-                token.GetProperty("special").GetBoolean(), "added-token flags");
-            string text = token.GetProperty("content").GetString()!;
-            int id = token.GetProperty("id").GetInt32();
-            if (text.Length == 0 || !vocabulary.TryGetValue(text, out int actual) || actual != id || added.Any(t => t.Text == text))
-                throw new InvalidDataException("Added token differs from vocabulary");
+            var token = JsonAsset.Object(entry, "added_tokens[]");
+            Require(!JsonAsset.Bool(token, "single_word", "added_tokens[]") && !JsonAsset.Bool(token, "lstrip", "added_tokens[]") &&
+                !JsonAsset.Bool(token, "rstrip", "added_tokens[]") && !JsonAsset.Bool(token, "normalized", "added_tokens[]") &&
+                JsonAsset.Bool(token, "special", "added_tokens[]"), "added-token flags");
+            string text = JsonAsset.String(token, "content", "added_tokens[]");
+            int id = JsonAsset.Int(JsonAsset.Required(token, "id", "added_tokens[]"), "added_tokens[].id");
+            if (!vocabulary.TryGetValue(text, out int actual) || actual != id || added.Any(t => t.Text == text))
+                throw new InvalidDataException("Invalid added_tokens[].content/id: " + text);
             added.Add((text, id));
         }
         addedTokens = new LiteralTokenMatcher(added.Select(token => (token.Text, (long)token.Id)));
-        JsonElement post = root.GetProperty("post_processor"), single = post.GetProperty("single");
-        Require(post.GetProperty("type").GetString() == "TemplateProcessing" && single.GetArrayLength() == 3 &&
+        var post = JsonAsset.Object(JsonAsset.Required(root, "post_processor", "tokenizer"), "post_processor");
+        var single = JsonAsset.Array(JsonAsset.Required(post, "single", "post_processor"), "post_processor.single");
+        Require(JsonAsset.String(post, "type", "post_processor") == "TemplateProcessing" && single.GetArrayLength() == 3 &&
             TemplateToken(single[0], "SpecialToken", "<bos>") && TemplateToken(single[1], "Sequence", "A") &&
             TemplateToken(single[2], "SpecialToken", "<eos>"), "single-sequence template");
-        JsonElement specials = post.GetProperty("special_tokens");
+        var specials = JsonAsset.Object(JsonAsset.Required(post, "special_tokens", "post_processor"), "post_processor.special_tokens");
         foreach (var (text, id) in new[] { ("<bos>", 2), ("<eos>", 1) })
         {
-            JsonElement token = specials.GetProperty(text);
-            Require(token.GetProperty("id").GetString() == text && token.GetProperty("ids").GetArrayLength() == 1 &&
-                token.GetProperty("ids")[0].GetInt32() == id && token.GetProperty("tokens").GetArrayLength() == 1 &&
-                token.GetProperty("tokens")[0].GetString() == text && added.Contains((text, id)), "template token IDs");
+            var token = JsonAsset.Object(JsonAsset.Required(specials, text, "post_processor.special_tokens"), "post_processor.special_tokens[]");
+            var tokenIds = JsonAsset.Array(JsonAsset.Required(token, "ids", "post_processor.special_tokens[]"), "post_processor.special_tokens[].ids");
+            var texts = JsonAsset.Array(JsonAsset.Required(token, "tokens", "post_processor.special_tokens[]"), "post_processor.special_tokens[].tokens");
+            Require(JsonAsset.String(token, "id", "post_processor.special_tokens[]") == text && tokenIds.GetArrayLength() == 1 &&
+                JsonAsset.Int(tokenIds[0], "post_processor.special_tokens[].ids[]") == id && texts.GetArrayLength() == 1 &&
+                JsonAsset.String(texts[0], "post_processor.special_tokens[].tokens[]") == text && added.Contains((text, id)), "template token IDs");
         }
     }
 
-    static bool TemplateToken(JsonElement element, string kind, string id) =>
-        element.TryGetProperty(kind, out var token) && token.GetProperty("id").GetString() == id &&
-        token.GetProperty("type_id").GetInt32() == 0;
+    static bool TemplateToken(JsonElement element, string kind, string id)
+    {
+        JsonAsset.Object(element, "post_processor.single[]");
+        if (!element.TryGetProperty(kind, out var value)) return false;
+        var token = JsonAsset.Object(value, "post_processor.single[]");
+        return JsonAsset.String(token, "id", "post_processor.single[]") == id &&
+            JsonAsset.Int(JsonAsset.Required(token, "type_id", "post_processor.single[]"), "post_processor.single[].type_id") == 0;
+    }
 
-    static bool IsNull(JsonElement element, string property) => element.GetProperty(property).ValueKind == JsonValueKind.Null;
+    static string Pattern(JsonElement element, string path) => JsonAsset.String(
+        JsonAsset.Object(JsonAsset.Required(element, "pattern", path), path + ".pattern"), "String", path + ".pattern");
+
+    static bool IsNull(JsonElement element, string property, string path) => JsonAsset.Required(element, property, path).ValueKind == JsonValueKind.Null;
 
     static void Require(bool condition, string setting)
     {
@@ -182,6 +200,7 @@ public sealed class GemmaTokenizer
 
     void EncodeOrdinary(ReadOnlySpan<char> text, List<long> result, int contentLimit, long normalizedBytes)
     {
+        if (text.IsEmpty) return;
         // Every final piece represents at most maximumTokenBytes normalized bytes.
         // Unlike a character-count estimate, this lower bound remains valid after arbitrary BPE merges.
         if (normalizedBytes > (long)maximumTokenBytes * (contentLimit - result.Count)) ThrowTokenLimit();
@@ -192,8 +211,7 @@ public sealed class GemmaTokenizer
             if (Rune.DecodeFromUtf16(text, out Rune rune, out int consumed) != OperationStatus.Done)
                 throw new ArgumentException("Text contains invalid UTF-16", nameof(text));
             if (rune.Value == ' ') rune = new Rune(0x2581);
-            string symbol = rune.ToString();
-            if (vocabulary.TryGetValue(symbol, out int id)) initial.Add(id);
+            if (characters.TryGetValue(rune, out int id)) initial.Add(id);
             else
             {
                 int length = rune.EncodeToUtf8(encoded);

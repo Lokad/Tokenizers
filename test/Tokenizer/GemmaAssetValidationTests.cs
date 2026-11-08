@@ -7,15 +7,78 @@ namespace Lokad.Tokenizers.Tests.Tokenizer;
 public sealed class GemmaAssetValidationTests
 {
     [Theory]
-    [InlineData("duplicate-id")]
-    [InlineData("negative-id")]
-    [InlineData("missing-byte")]
-    [InlineData("unknown-merge")]
-    [InlineData("missing-merge-result")]
-    [InlineData("duplicate-merge")]
-    [InlineData("added-id")]
-    [InlineData("duplicate-added")]
-    public void InvalidAssetsHaveUsefulDeterministicDiagnostics(string setting)
+    [InlineData("\"version\":\"1.0\"", "\"version\":\"\\uD800\"", "tokenizer.version")]
+    [InlineData("\"version\":\"1.0\"", "\"\\uD800\":\"1.0\"", "tokenizer")]
+    [InlineData("\"vocab\":{", "\"vocab\":{\"\\uD800\":999,", "model.vocab")]
+    public void MalformedUnicodeStringsIdentifyTheirSetting(string original, string replacement, string path)
+    {
+        string file = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(file, GemmaTokenizerTests.FixtureJson().Replace(original, replacement, StringComparison.Ordinal));
+            Assert.Contains(path, Assert.Throws<InvalidDataException>(() => new GemmaTokenizer(file)).Message);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Theory]
+    [InlineData("🧪")]
+    [InlineData("\uFFFE")]
+    public void EscapedValidUnicodeVocabularyNamesRemainSupported(string text)
+    {
+        var json = JsonNode.Parse(GemmaTokenizerTests.FixtureJson())!;
+        json["model"]!["vocab"]![text] = 999;
+        WithAsset(json, file => Assert.Equal(new long[] { 999 }, new GemmaTokenizer(file).Encode(text, false)));
+    }
+
+    [Theory]
+    [InlineData("missing-model","model")]
+    [InlineData("null-model","model")]
+    [InlineData("missing-normalizer","normalizer")]
+    [InlineData("null-content","added_tokens[].content")]
+    [InlineData("number-content","added_tokens[].content")]
+    [InlineData("null-merge","model.merges[][0]")]
+    [InlineData("wrong-vocab-shape","model.vocab")]
+    [InlineData("wrong-id-type","model.vocab")]
+    public void MalformedShapesIdentifyTheSetting(string mutation,string path)
+    {
+        var json=JsonNode.Parse(GemmaTokenizerTests.FixtureJson())!;
+        switch(mutation)
+        {
+            case "missing-model":json.AsObject().Remove("model");break;
+            case "null-model":json["model"]=null;break;
+            case "missing-normalizer":json.AsObject().Remove("normalizer");break;
+            case "null-content":json["added_tokens"]![0]!["content"]=null;break;
+            case "number-content":json["added_tokens"]![0]!["content"]=42;break;
+            case "null-merge":json["model"]!["merges"]![0]![0]=null;break;
+            case "wrong-vocab-shape":json["model"]!["vocab"]=new JsonArray();break;
+            case "wrong-id-type":json["model"]!["vocab"]!["a"]="not an ID";break;
+        }
+        WithAsset(json,file=>Assert.Contains(path,Assert.Throws<InvalidDataException>(()=>new GemmaTokenizer(file)).Message));
+    }
+
+    [Fact]
+    public void DuplicateObjectFieldsHaveSettingPaths()
+    {
+        string file=Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(file,GemmaTokenizerTests.FixtureJson().Replace("\"version\":\"1.0\"","\"version\":\"1.0\",\"version\":\"1.0\"",StringComparison.Ordinal));
+            Assert.Contains("tokenizer.version",Assert.Throws<InvalidDataException>(()=>new GemmaTokenizer(file)).Message);
+        }
+        finally{File.Delete(file);}
+    }
+
+    [Theory]
+    [InlineData("duplicate-id","model.vocab")]
+    [InlineData("negative-id","model.vocab")]
+    [InlineData("missing-byte","model.vocab")]
+    [InlineData("unknown-merge","model.merges")]
+    [InlineData("missing-merge-result","model.merges")]
+    [InlineData("duplicate-merge","model.merges")]
+    [InlineData("added-id","added_tokens")]
+    [InlineData("duplicate-added","added_tokens")]
+    public void InvalidAssetsIdentifyTheAffectedSetting(string setting,string expectedPath)
     {
         var json = JsonNode.Parse(GemmaTokenizerTests.FixtureJson())!;
         switch (setting)
@@ -31,9 +94,7 @@ public sealed class GemmaAssetValidationTests
         }
         WithAsset(json,path => {
             var first = Assert.Throws<InvalidDataException>(() => new GemmaTokenizer(path));
-            var second = Assert.Throws<InvalidDataException>(() => new GemmaTokenizer(path));
-            Assert.Equal(first.Message,second.Message);
-            Assert.False(string.IsNullOrWhiteSpace(first.Message));
+            Assert.Contains(expectedPath,first.Message);
         });
     }
 
