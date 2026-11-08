@@ -8,7 +8,16 @@ namespace Lokad.Tokenizers.Vocab;
 /// <remarks>Do not mutate Root or its descendants while encoding concurrently.</remarks>
 public class SentencePieceModel
 {
-    public TrieNode Root { get; set; } = new("");
+    private TrieNode root = new("");
+    private PrefixMatcher<TrieNode>? matcher;
+    private readonly object matcherLock = new();
+    private volatile bool externallyMutable;
+    /// <summary>The mutable public trie. Obtaining it disables the shared compiled snapshot.</summary>
+    public TrieNode Root
+    {
+        get { externallyMutable = true; return root; }
+        set { root = value ?? throw new ArgumentNullException(nameof(value)); externallyMutable = true; }
+    }
     private float unknownScore = -100;
     // Keep the existing float comparisons (and legacy tie-breaking) with ample
     // headroom for any representable input length, including the unknown penalty.
@@ -31,6 +40,7 @@ public class SentencePieceModel
         };
         for (int index = 3; index < proto.Pieces.Count; index++)
             model.Insert(proto.Pieces[index].Piece, proto.Pieces[index].Score, index);
+        model.matcher = model.CompileMatcher();
         return model;
     }
 
@@ -68,7 +78,7 @@ public class SentencePieceModel
 
     private void Insert(string text, float score, int index)
     {
-        var node = Root;
+        var node = root;
         int utf16 = 0, scalars = 0;
         foreach (Rune rune in text.EnumerateRunes())
         {
@@ -86,7 +96,7 @@ public class SentencePieceModel
         ArgumentNullException.ThrowIfNull(text);
         UnicodeProfile.ValidateUtf16(text);
         var result = new List<TrieNode>();
-        var node = Root;
+        var node = root;
         foreach (Rune rune in text.EnumerateRunes())
         {
             var child = node.FindChild(rune);
@@ -94,6 +104,7 @@ public class SentencePieceModel
             node = child;
             if (node.End) result.Add(node);
         }
+        if (result.Count != 0) externallyMutable = true;
         return result;
     }
 
@@ -111,6 +122,16 @@ public class SentencePieceModel
 
     private readonly record struct Path(Rune[] Runes, float[] Scores, int[] Starts, TrieNode?[] Pieces);
 
+    private PrefixMatcher<TrieNode> CompileMatcher() => PrefixMatcher<TrieNode>.Create(root, n => n.Edges, n => (n.End, n));
+
+    private PrefixMatcher<TrieNode> GetMatcher()
+    {
+        // Dictionary mutations through the public trie cannot be intercepted. Callers
+        // obtaining nodes retain live mutation semantics through a fresh snapshot.
+        if (externallyMutable) return CompileMatcher();
+        lock (matcherLock) return matcher ??= CompileMatcher();
+    }
+
     private Path FindPredecessors(string text)
     {
         UnicodeProfile.ValidateUtf16(text);
@@ -119,34 +140,37 @@ public class SentencePieceModel
         var starts = Enumerable.Repeat(-1, runes.Length + 1).ToArray();
         var pieces = new TrieNode?[runes.Length + 1];
         scores[0] = 0;
-        for (int start = 0; start < runes.Length; start++)
+        if (runes.Length == 0) return new(runes, scores, starts, pieces);
+        var matching = GetMatcher();
+        int state = 0;
+        for (int end = 1; end <= runes.Length; end++)
         {
-            if (!float.IsFinite(scores[start])) throw new InvalidDataException("Model has an unreachable or non-finite segmentation path");
+            state = matching.Step(state, runes[end - 1].Value);
             bool single = false;
-            var node = Root;
-            for (int end = start; end < runes.Length; end++)
+            // Earlier starts (longest pieces) win float ties, as in the original
+            // start-major dynamic program. Unknown length-one edges are last.
+            for (int match = matching.FirstMatch(state); match != 0; match = matching.NextMatch(match))
             {
-                var child = node.FindChild(runes[end]);
-                if (child == null) break;
-                node = child;
-                if (!node.End) continue;
+                var node = matching.Value(match);
+                int length = matching.Length(match), start = end - length;
                 if (!IsSupportedScore(node.Score)) throw new InvalidDataException("Model piece score exceeds the supported cumulative score range");
-                if (end == start) single = true;
+                if (length == 1) single = true;
                 float score = scores[start] + node.Score;
                 if (!float.IsFinite(score)) throw new InvalidDataException("Model cumulative score is not finite");
-                if (score > scores[end + 1])
+                if (score > scores[end])
                 {
-                    scores[end + 1] = score;
-                    starts[end + 1] = start;
-                    pieces[end + 1] = node;
+                    scores[end] = score;
+                    starts[end] = start;
+                    pieces[end] = node;
                 }
             }
-            if (!single && scores[start] + unknownScore > scores[start + 1])
+            if (!single && scores[end - 1] + unknownScore > scores[end])
             {
-                scores[start + 1] = scores[start] + unknownScore;
-                starts[start + 1] = start;
-                pieces[start + 1] = null;
+                scores[end] = scores[end - 1] + unknownScore;
+                starts[end] = end - 1;
+                pieces[end] = null;
             }
+            if (!float.IsFinite(scores[end])) throw new InvalidDataException("Model has an unreachable or non-finite segmentation path");
         }
         return new(runes, scores, starts, pieces);
     }

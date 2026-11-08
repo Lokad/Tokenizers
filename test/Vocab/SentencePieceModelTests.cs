@@ -9,6 +9,85 @@ namespace Lokad.Tokenizers.Vocab.Tests;
 public sealed class SentencePieceModelTests
 {
     [Fact]
+    public void PublicTrieEditsRemainVisibleAfterCompilingAndReturningPrefixNodes()
+    {
+        WithModel(Tiny(), path => {
+            var model = SentencePieceModel.FromFile(path);
+            List<Node> Decode() => model.DecodeBackward(model.DecodeForwardTokenRef(new Token("aa")).ToArray());
+            Assert.Equal("aa", Assert.Single(Decode()).Text);
+            var aa = model.CommonPrefixSearch("aa").Last();
+            aa.Score = -3;
+            Assert.Equal(new[] { "a", "a" }, Decode().Select(n => n.Text));
+            var a = model.Root.Children[new Rune('a')];
+            a.Children.Remove(new Rune('a'));
+            Assert.Equal(2, Decode().Count);
+            model.Root = new TrieNode("");
+            Assert.All(Decode(), n => Assert.Equal(0, n.Index));
+        });
+    }
+
+    [Fact]
+    public void MatchingAndTieBreakingAgreeWithTheStartMajorReference()
+    {
+        // Exhaustive small inputs exercise overlapping suffixes, unknown fallback
+        // and exact score ties independently of the compiled matcher's state layout.
+        var model = new SentencePieceModel();
+        var dictionary = new Dictionary<string, (float Score, int Id)> {
+            ["a"]=(-1,3), ["aa"]=(-2,4), ["aba"]=(-2,5), ["b"]=(-1,6), ["ba"]=(-2,7), ["bb"]=(-0.5f,8)
+        };
+        foreach (var entry in dictionary)
+        {
+            var node = model.Root;
+            foreach (Rune rune in entry.Key.EnumerateRunes())
+            {
+                if (!node.Children.TryGetValue(rune, out var child)) node.Children.Add(rune, child = new TrieNode(rune.ToString()));
+                node = child;
+            }
+            node.Text=entry.Key; node.End=true; node.Score=entry.Value.Score; node.Index=entry.Value.Id;
+        }
+        for (int number = 0; number < 729; number++)
+        {
+            int remaining = number;
+            string text = string.Concat(Enumerable.Range(0,6).Select(_ => { char c="abx"[remaining%3]; remaining/=3; return c; }));
+            var scores = Enumerable.Repeat(float.NegativeInfinity,7).ToArray(); scores[0]=0;
+            var starts = new int[7]; var ids = new int[7];
+            for (int start=0; start<6; start++)
+            {
+                bool single=false;
+                foreach (var entry in dictionary.Where(p=>text.AsSpan(start).StartsWith(p.Key,StringComparison.Ordinal)).OrderBy(p=>p.Key.Length))
+                {
+                    int end=start+entry.Key.Length;
+                    single |= entry.Key.Length==1;
+                    float score=scores[start]+entry.Value.Score;
+                    if(score>scores[end]) { scores[end]=score; starts[end]=start; ids[end]=entry.Value.Id; }
+                }
+                if(!single && scores[start]-100>scores[start+1]) { scores[start+1]=scores[start]-100; starts[start+1]=start; ids[start+1]=0; }
+            }
+            var expected=new List<(int Start,int End,int Id)>();
+            for(int end=6; end>0; end=starts[end]) expected.Add((starts[end],end,ids[end]));
+            expected.Reverse();
+            var actual=model.DecodeBackward(model.DecodeForwardTokenRef(new Token(text)).ToArray());
+            Assert.Equal(expected,actual.Select(n=>(n.Start,n.End,(int)n.Index)));
+            Assert.Equal(scores[6],actual[^1].Score);
+        }
+    }
+
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(4000)]
+    public void AcceptedLongPiecesMatchWithoutDiscardingTheirOriginalIds(int length)
+    {
+        var proto=Tiny(); proto.Pieces.RemoveAt(4); proto.Pieces[3].Piece=new string('a',length); proto.TrainerSpec.VocabSize=4;
+        WithModel(proto,path=>{
+            var model=SentencePieceModel.FromFile(path);
+            var exact=model.DecodeBackward(model.DecodeForwardTokenRef(new Token(new string('a',length))).ToArray());
+            Assert.Equal(3,Assert.Single(exact).Index);
+            var mismatch=model.DecodeBackward(model.DecodeForwardTokenRef(new Token(new string('a',length-1)+"b")).ToArray());
+            Assert.Equal(length,mismatch.Count); Assert.All(mismatch,n=>Assert.Equal(0,n.Index));
+        });
+    }
+
+    [Fact]
     public void SmallModelMasksRespectWordsPunctuationAndUnknownBoundaries()
     {
         var model = new SentencePieceModel();

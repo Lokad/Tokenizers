@@ -143,9 +143,10 @@ public sealed class GemmaTokenizer
         int contentLimit = maximumTokens - (addSpecialTokens ? 1 : 0);
         int start = 0, position = 0;
         long ordinaryBytes = 0;
+        var matches = addedTokens.FindMatches(text);
         while (position < text.Length)
         {
-            if (addedTokens.TryMatch(text.AsSpan(position), out var match))
+            if (addedTokens.TryMatch(matches, position, out var match))
             {
                 EncodeOrdinary(text.AsSpan(start, position - start), result, contentLimit, ordinaryBytes);
                 if (result.Count >= contentLimit) ThrowTokenLimit();

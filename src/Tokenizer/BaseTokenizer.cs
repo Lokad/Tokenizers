@@ -181,6 +181,7 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         if (token.Mask is Mask.Special or Mask.Unknown) return new() { token.Clone() };
         var matcher = ReferenceEquals(vocabulary, vocab) ? specialTokens :
             new LiteralTokenMatcher(vocabulary.SpecialValues.Select(p => (p.Key, p.Value)));
+        var matches = matcher.FindMatches(token.Text);
         var references = token.TracksOffsets ? TokenAlignment.References(token) : null;
         var result = new List<Token>();
         int position = 0, scalar = 0, start = 0, startScalar = 0;
@@ -191,7 +192,7 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         }
         while (position < token.Text.Length)
         {
-            if (!matcher.TryMatch(token.Text.AsSpan(position), out var match))
+            if (!matcher.TryMatch(matches, position, out var match))
             {
                 position += Rune.GetRuneAt(token.Text, position).Utf16SequenceLength;
                 scalar++;

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 
 namespace Lokad.Tokenizers.Vocab;
 
@@ -58,6 +58,7 @@ public class TrieNode
     }
 
     internal TrieNode? FindChild(Rune rune) => children?.GetValueOrDefault(rune);
+    internal IEnumerable<(int Symbol, TrieNode Child)> Edges => children == null ? [] : children.Select(p => (p.Key.Value, p.Value));
 
     internal TrieNode GetOrAddChild(Rune rune, string piece, int prefixEnd, int scalarLength)
     {
