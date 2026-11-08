@@ -32,7 +32,7 @@ $symbols = Join-Path $OutputDirectory "Lokad.Tokenizers.$version.snupkg"
 $archive = [IO.Compression.ZipFile]::OpenRead($package)
 try {
     $entries = @($archive.Entries.FullName)
-    foreach ($required in @('lib/net10.0/Lokad.Tokenizers.dll', 'lib/net10.0/Lokad.Tokenizers.xml', 'README.md', 'CHANGELOG.md', 'LICENSE.txt', 'icon.png')) {
+    foreach ($required in @('lib/net10.0/Lokad.Tokenizers.dll', 'lib/net10.0/Lokad.Tokenizers.xml', 'README.md', 'CHANGELOG.md', 'LICENSE.txt', 'licenses/Unicode.txt', 'icon.png')) {
         if ($required -notin $entries) { throw "Package is missing $required" }
     }
     if (@($entries | Where-Object { $_ -like 'lib/*/*.dll' }).Count -ne 1) { throw 'Unexpected package assemblies' }
@@ -90,6 +90,33 @@ try {
         Invoke-Checked { & $ConsumerDotNet (Join-Path $consumer "bin/Release/$framework/Consumer.dll") $version $Tokenizer $symbols $commit $legacy $protobufVersion }
         Write-Host "PASS $framework package consumer"
     }
+
+    # Keep a valid PDB and SourceLink payload, changing only its portable-PDB identity.
+    # A verifier that checks SourceLink alone would incorrectly accept this archive.
+    $mismatchedSymbols = Join-Path $consumer 'mismatched.snupkg'
+    Copy-Item -LiteralPath $symbols -Destination $mismatchedSymbols
+    $negativeArchive = [IO.Compression.ZipFile]::Open($mismatchedSymbols, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $entry = $negativeArchive.GetEntry('lib/net10.0/Lokad.Tokenizers.pdb')
+        $pdbBytes = [byte[]]::new([int]$entry.Length)
+        $stream = $entry.Open()
+        try { $stream.ReadExactly($pdbBytes) } finally { $stream.Dispose() }
+        $memory = [IO.MemoryStream]::new($pdbBytes, $false)
+        $provider = [Reflection.Metadata.MetadataReaderProvider]::FromPortablePdbStream($memory)
+        try {
+            $identityOffset = $provider.GetMetadataReader([Reflection.Metadata.MetadataReaderOptions]::Default, $null).DebugMetadataHeader.IdStartOffset
+        } finally { $provider.Dispose(); $memory.Dispose() }
+        $pdbBytes[$identityOffset] = [byte]($pdbBytes[$identityOffset] -bxor 1)
+        $entry.Delete()
+        $stream = $negativeArchive.CreateEntry('lib/net10.0/Lokad.Tokenizers.pdb').Open()
+        try { $stream.Write($pdbBytes) } finally { $stream.Dispose() }
+    } finally { $negativeArchive.Dispose() }
+    $negativeOutput = (& $ConsumerDotNet (Join-Path $consumer "bin/Release/$($ConsumerFrameworks[0])/Consumer.dll") $version $Tokenizer $mismatchedSymbols $commit $legacy $protobufVersion 2>&1 | Out-String)
+    if ($LASTEXITCODE -eq 0 -or !$negativeOutput.Contains('Portable PDB identity does not match the packaged assembly')) {
+        throw "Mismatched symbols were not rejected by the identity check: $negativeOutput"
+    }
+    Write-Host 'PASS mismatched-symbols negative control'
 } finally { Pop-Location }
 Write-Host "PASS package contents, 128x128 icon, symbols, and consumers: $package"
 Write-Host "Consumer evidence: $consumer"
+exit 0

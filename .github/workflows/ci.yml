@@ -35,11 +35,13 @@ jobs:
           dotnet-version: '10.0.x'
       - uses: actions/setup-python@v7.1.0
         with:
-          python-version: '3.12'
+          python-version: '3.13'
       - name: Restore locked dependencies
         run: dotnet restore Lokad.Tokenizers.slnx --locked-mode --tl:off -v minimal
       - name: Verify canonical protobuf generation
         run: ./eng/generate-protobuf.ps1 -Check
+      - name: Verify pinned Unicode generation
+        run: python eng/generate-unicode.py --check
       - name: Build Release
         run: dotnet build Lokad.Tokenizers.slnx -c Release --no-restore --tl:off --nologo -v minimal
       - name: Test offline fixtures
@@ -52,6 +54,8 @@ jobs:
         run: ./eng/test-gemma.ps1 -Python python -Download -SkipBuild
       - name: Qualify XLM-R Unicode and legacy fixtures
         run: ./eng/test-xlm.ps1 -Python python -SkipBuild
+      - name: Qualify exhaustive Unicode profile
+        run: ./eng/test-unicode.ps1 -Python python -SkipBuild
       - name: Resolve latest .NET 11 SDK
         id: dotnet11
         run: |
@@ -72,6 +76,7 @@ jobs:
             artifacts/test-results/
             artifacts/gemma/
             artifacts/xlm/
+            artifacts/unicode/actual.json
           if-no-files-found: ignore
       # Development packages validate this source; published artifacts stay separate.
       - name: Upload packages

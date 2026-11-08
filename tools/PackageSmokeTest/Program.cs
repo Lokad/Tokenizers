@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using Lokad.Tokenizers.Tokenizer;
 using Lokad.Tokenizers.Vocab;
@@ -10,6 +11,35 @@ if (typeof(GemmaTokenizer).Assembly.GetName().Version?.ToString(3) != version)
     throw new InvalidOperationException("Unexpected package assembly version");
 string? protobufVersion = typeof(Google.Protobuf.IMessage).Assembly.GetName().Version?.ToString(3);
 if (protobufVersion != args[5]) throw new InvalidOperationException("Unexpected Google.Protobuf runtime version: " + protobufVersion);
+using var symbols = ZipFile.OpenRead(args[2]);
+using var pdbStream = new MemoryStream();
+using (var source = symbols.GetEntry("lib/net10.0/Lokad.Tokenizers.pdb")!.Open()) source.CopyTo(pdbStream);
+pdbStream.Position = 0;
+using var metadata = MetadataReaderProvider.FromPortablePdbStream(pdbStream);
+MetadataReader reader = metadata.GetMetadataReader();
+using var assemblyStream = File.OpenRead(typeof(GemmaTokenizer).Assembly.Location);
+using var pe = new PEReader(assemblyStream);
+var codeViewEntry = pe.ReadDebugDirectory().Single(e => e.Type == DebugDirectoryEntryType.CodeView);
+var codeView = pe.ReadCodeViewDebugDirectoryData(codeViewEntry);
+var pdbId = new BlobContentId(reader.DebugMetadataHeader?.Id ?? throw new InvalidDataException("Missing portable PDB identity"));
+if (codeView.Guid != pdbId.Guid || codeViewEntry.Stamp != pdbId.Stamp || codeView.Age != 1)
+    throw new InvalidDataException("Portable PDB identity does not match the packaged assembly");
+bool sourceLink = false;
+foreach (var handle in reader.CustomDebugInformation)
+{
+    byte[] blob = reader.GetBlobBytes(reader.GetCustomDebugInformation(handle).Value);
+    if (blob.Length == 0 || blob[0] != (byte)'{') continue;
+    try
+    {
+        using var json = JsonDocument.Parse(blob);
+        if (json.RootElement.TryGetProperty("documents", out var documents))
+            sourceLink |= documents.EnumerateObject().Any(p => p.Value.GetString()?.StartsWith(
+                "https://raw.githubusercontent.com/Lokad/Tokenizers/" + commit + "/", StringComparison.OrdinalIgnoreCase) == true);
+    }
+    catch (JsonException) { }
+}
+if (!sourceLink) throw new InvalidDataException("Portable PDB has no matching GitHub SourceLink mapping");
+
 var tokenizer = new GemmaTokenizer(args[1]);
 if (tokenizer.TokenizerSha256 != "4d777ef5bdc1aa36227abdfb77c3e49e7b9c892d16e1b6bda41c393504828be4")
     throw new InvalidDataException("Changed tokenizer asset");
@@ -21,7 +51,15 @@ if (batch.BatchSize != 2 || batch.SequenceLength != 6 || !batch.TokenCounts.Sequ
     !batch.AttentionMask.SequenceEqual(new long[] { 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1 }))
     throw new InvalidOperationException("Package right padding differs");
 var legacy = new XLMRobertaTokenizer(args[4], false);
+var lowercase = legacy.WithLowerCase(true);
+if (!ReferenceEquals(legacy.Vocab, lowercase.Vocab) || !lowercase.Tokenize("HELLO").SequenceEqual(legacy.Tokenize("hello")))
+    throw new InvalidOperationException("Package shared casing configuration differs");
 var legacyIds = legacy.Encode("…", null, 128, TruncationStrategy.LongestFirst, 0).TokenIds;
+if (!legacy.Encode("\U0001E030",null,128,TruncationStrategy.LongestFirst,0).TokenIds.SequenceEqual(new long[]{0,252,2}) ||
+    !lowercase.Encode("\uA7CB",null,128,TruncationStrategy.LongestFirst,0).TokenIds.SequenceEqual(new long[]{0,6,3,2}) ||
+    !legacy.Encode("\uFFFE",null,128,TruncationStrategy.LongestFirst,0).TokenIds.SequenceEqual(new long[]{0,6,3,2}) ||
+    !legacy.Encode("e\u0301",null,128,TruncationStrategy.LongestFirst,0).ReferenceOffsets[1].SequenceEqual(new uint[]{0,1}))
+    throw new InvalidOperationException("Package Unicode 15.1/source-position contract differs");
 if (!legacyIds.SequenceEqual(new long[] { 0, 153, 2 }))
     throw new InvalidOperationException("Package XLM-R encoding differs");
 ITokenizer<XlmRobertaVocab> legacyContract = legacy;
@@ -51,25 +89,4 @@ try
 }
 finally { File.Delete(flatFile); }
 
-using var symbols = ZipFile.OpenRead(args[2]);
-using var pdbStream = new MemoryStream();
-using (var source = symbols.GetEntry("lib/net10.0/Lokad.Tokenizers.pdb")!.Open()) source.CopyTo(pdbStream);
-pdbStream.Position = 0;
-using var metadata = MetadataReaderProvider.FromPortablePdbStream(pdbStream);
-MetadataReader reader = metadata.GetMetadataReader();
-bool sourceLink = false;
-foreach (var handle in reader.CustomDebugInformation)
-{
-    byte[] blob = reader.GetBlobBytes(reader.GetCustomDebugInformation(handle).Value);
-    if (blob.Length == 0 || blob[0] != (byte)'{') continue;
-    try
-    {
-        using var json = JsonDocument.Parse(blob);
-        if (json.RootElement.TryGetProperty("documents", out var documents))
-            sourceLink |= documents.EnumerateObject().Any(p => p.Value.GetString()?.StartsWith(
-                "https://raw.githubusercontent.com/Lokad/Tokenizers/" + commit + "/", StringComparison.OrdinalIgnoreCase) == true);
-    }
-    catch (JsonException) { }
-}
-if (!sourceLink) throw new InvalidDataException("Portable PDB has no matching GitHub SourceLink mapping");
 Console.WriteLine($"PASS isolated package consumer, XLM-R/Gemma APIs, and SourceLink: {version} on .NET {Environment.Version} with Google.Protobuf {protobufVersion}");

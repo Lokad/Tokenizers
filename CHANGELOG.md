@@ -2,6 +2,18 @@
 
 ## 0.2.0 (unreleased)
 
+- Preserve paired stride ownership and Japanese punctuation masks; add discriminating continuation-mask goldens.
+- Replace long-prefix rescanning with shared failure-link matching while retaining unigram ties and live public trie edits.
+- Reject impossible XLM-R template limits early; transfer internal metadata and defer normalization maps until text changes.
+- Align typed/object Offset equality and raw segmentation UTF-16 policy; identify malformed escaped JSON strings by asset path.
+- Pin managed normalization, scalar casing and character properties to Unicode 15.1; qualify every scalar independently and run the official normalization conformance corpus offline.
+- Copy mutable template metadata and qualify full source-reference vectors, including composition and sequence B.
+- Reject extreme cumulative-score ranges and duplicate JSON vocabulary entries with explicit diagnostics.
+- Avoid rune boxing and unchanged preprocessing copies; share the Python reference model, separate independent Gemma tests and refresh DTO documentation.
+- Reject malformed tokenizer assets, duplicate token fields, misaligned template inputs and invalid predecessor chains with explicit diagnostics.
+- Preserve whitespace-only literal specials, qualify exact paired templates, and verify that package symbols match the shipped DLL.
+- Reduce model retention, prefix construction and metadata allocations; share loaded assets between casing configurations.
+- Clarify dictionary-only additions and unreleased installation, and expand independent performance workloads.
 - Target .NET 10 and use the XML solution format.
 - Verify NuGet consumption on .NET 10 and .NET 11 (initial qualification on RC3).
 - Keep the Google.Protobuf dependency floor and generated bindings at 3.33.5, verified by an isolated consumer pinned to that runtime.
