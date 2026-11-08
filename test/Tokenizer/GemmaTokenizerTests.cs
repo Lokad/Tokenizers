@@ -167,11 +167,13 @@ public sealed class GemmaTokenizerTests
         Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(new[] { "aaaa" }, 3));
     }
 
-    [Fact]
-    public void ImpossibleLongInputLimitRejectsBeforeBpeStateAllocation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ImpossibleLongInputLimitRejectsBeforeBpeStateAllocation(bool hasUnmatchedLiteralPrefix)
     {
         var tokenizer=Create();
-        string text = new('a', 200_000);
+        string text = (hasUnmatchedLiteralPrefix ? "<" : "") + new string('a', 200_000);
         long before = GC.GetAllocatedBytesForCurrentThread();
         Assert.Throws<ArgumentException>(() => tokenizer.EncodeBatch(new[] { text }, 2));
         long allocation = GC.GetAllocatedBytesForCurrentThread() - before;

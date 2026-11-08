@@ -40,14 +40,17 @@ internal sealed class LiteralTokenMatcher
     internal int[] FindMatches(string text)
     {
         if (!text.Any(startingCharacters.Contains)) return [];
-        var matches = new int[text.Length];
+        int[]? matches = null;
         int state = 0;
         for (int i = text.Length - 1; i >= 0; i--)
         {
             state = matcher.Step(state, text[i]);
-            matches[i] = matcher.FirstMatch(state);
+            int match = matcher.FirstMatch(state);
+            if (match == 0) continue;
+            matches ??= new int[text.Length];
+            matches[i] = match;
         }
-        return matches;
+        return matches ?? [];
     }
 
     internal bool TryMatch(int[] matches, int position, out Match match)
