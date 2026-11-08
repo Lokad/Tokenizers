@@ -1,7 +1,8 @@
 namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
-/// Offset information (in unicode points) to relate a token back to its original input string
+/// Offset information (in unicode points) to relate a token back to its original input string.
+/// Equality requires equal coordinates and the same runtime type.
 /// </summary>
 public class Offset : IEquatable<Offset>
 {
@@ -18,7 +19,7 @@ public class Offset : IEquatable<Offset>
     }
 
     /// <summary>
-    /// Wrap the offset into an option
+    /// Return this offset for a nonempty span, or null for an empty or reversed span.
     /// </summary>
     public Offset? IntoOption()
     {
@@ -46,7 +47,7 @@ public class Offset : IEquatable<Offset>
             return true;
         }
 
-        return Begin == other.Begin && End == other.End;
+        return GetType() == other.GetType() && Begin == other.Begin && End == other.End;
     }
 
     public override bool Equals(object? obj)
@@ -61,12 +62,7 @@ public class Offset : IEquatable<Offset>
             return true;
         }
 
-        if (obj.GetType() != this.GetType())
-        {
-            return false;
-        }
-
-        return Equals((Offset)obj);
+        return obj is Offset other && Equals(other);
     }
 
     public override int GetHashCode()
