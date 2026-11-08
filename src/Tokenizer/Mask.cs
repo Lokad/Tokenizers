@@ -31,17 +31,17 @@ public enum Mask
     Special,
 
     /// <summary>
-    /// The token is the begin in a series of subtokens, the offset refers specifically to the sub-token. Subsequent tokens in this sequence will carry the 'Continuation' mask
+    /// Compatibility state for a subtoken beginning. Built-in tokenizers use None for word beginnings and do not emit Begin.
     /// </summary>
     Begin,
 
     /// <summary>
-    /// The token is the continuation of the previous token, the offset refers specifically to the sub-token. All but the first sub-token in a sequence carry this mask (the first carries 'Begin'). (this is the reverse of Mask::Unfinished)
+    /// A continuation piece in unigram tokenization. Word beginnings use None; punctuation, whitespace, special and unknown pieces have their own masks.
     /// </summary>
     Continuation,
 
     /// <summary>
-    /// The token is the start of a token but not finished yet. All but the last sub-token in the a token sequence carry this mask. This is the reverse of Mask::Continuation.
+    /// Compatibility state for an unfinished subtoken. Built-in tokenizers do not emit this state.
     /// </summary>
     Unfinished,
 

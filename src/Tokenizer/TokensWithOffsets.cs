@@ -24,7 +24,7 @@ public class TokensWithOffsets
     public List<IReadOnlyList<uint>> ReferenceOffsets { get; set; } = [];
 
     /// <summary>
-    /// Masks tokens providing information on the type of tokens. This list has the same length as TokenIds.
+    /// Masks tokens providing information on the type of tokens. This list has the same length as Tokens.
     /// </summary>
     public List<Mask> Masks { get; set; } = [];
 }

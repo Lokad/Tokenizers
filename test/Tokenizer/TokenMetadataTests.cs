@@ -76,20 +76,26 @@ public sealed class TokenMetadataTests
         Assert.Equal(new uint[] { 0,0 }, dotted.ReferenceOffsets);
     }
 
-    [Fact]
-    public void GenericInterfaceAndFlatFileConstructorsAreUsable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FileConstructorsLoadTheSelectedUnknownMapping(bool mapped)
     {
-        string vocabulary = Path.GetTempFileName(), mapping = Path.GetTempFileName();
+        string vocabulary=Path.GetTempFileName(),mapping=Path.GetTempFileName();
         try
         {
-            File.WriteAllText(vocabulary, "[UNK]\nhello\nworld\n");
-            File.WriteAllText(mapping, "{\"UnkToken\":\"[UNK]\"}");
-            ITokenizer<BaseVocab> tokenizer = new BaseTokenizer<BaseVocab>(vocabulary, false, false);
-            Assert.Equal(new long[] { 1, 2 }, tokenizer.Encode("hello world", null, 3, TruncationStrategy.LongestFirst, 0).TokenIds);
-            var mapped = new BaseTokenizer<BaseVocab>(vocabulary, false, false, mapping);
-            Assert.Equal("hello world", mapped.Decode(new() { 1, 2 }, true, true));
-            Assert.Equal("I do not agree", mapped.CleanUpTokenization("I do not agree"));
+            string unknown=mapped?"<custom>":"[UNK]";
+            File.WriteAllText(vocabulary,unknown+"\nhello\nworld\n");
+            File.WriteAllText(mapping,"{\"UnkToken\":\""+unknown+"\"}");
+            ITokenizer<BaseVocab> tokenizer=mapped
+                ? new BaseTokenizer<BaseVocab>(vocabulary,false,false,mapping)
+                : new BaseTokenizer<BaseVocab>(vocabulary,false,false);
+            Assert.Equal(new long[]{1,2},tokenizer.Encode("hello world",null,3,TruncationStrategy.LongestFirst,0).TokenIds);
+            Assert.Equal(unknown,tokenizer.Vocab.GetUnknownValue());
         }
-        finally { File.Delete(vocabulary); File.Delete(mapping); }
+        finally {File.Delete(vocabulary);File.Delete(mapping);}
     }
+
+    [Fact]
+    public void CleanupPreservesOrdinaryDoNotPhrase() => Assert.Equal("I do not agree",Basic().CleanUpTokenization("I do not agree"));
 }

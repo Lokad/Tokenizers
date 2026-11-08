@@ -10,5 +10,6 @@
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All" />
     <ProjectReference Include="../src/Lokad.Tokenizers.csproj" />
     <None Update="Fixture/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Unicode/*.gz" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

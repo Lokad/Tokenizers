@@ -1,4 +1,3 @@
-using System.Text;
 using Lokad.Tokenizers.Vocab;
 
 namespace Lokad.Tokenizers.Tokenizer;
@@ -9,7 +8,6 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 {
     private readonly SentencePieceModel model;
     private readonly bool lowerCase;
-    internal SentencePieceModel Model => model;
 
     /// <summary>Read vocabulary and scores from one local SentencePiece protobuf file.</summary>
     public XLMRobertaTokenizer(string path, bool lowerCase) : this(Load(path, null), lowerCase) { }
@@ -38,33 +36,54 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
         this.lowerCase = lowerCase;
     }
 
+    /// <summary>Create an encoder with the requested casing, sharing this vocabulary and segmentation model.</summary>
+    /// <remarks>Finish vocabulary additions before encoding concurrently through either instance.</remarks>
+    public XLMRobertaTokenizer WithLowerCase(bool lowerCase) => new(Vocab, model, lowerCase);
+
+    public override List<string> Tokenize(string text)
+    {
+        if (GetType() != typeof(XLMRobertaTokenizer)) return base.Tokenize(text);
+        if (IsEmptyInput(text)) return [];
+        return TokenizeToTokens(new Token(text, false)).Select(t => t.Text).ToList();
+    }
+
     public override List<Token> TokenizeToTokens(Token tokenRef)
     {
+        ArgumentNullException.ThrowIfNull(tokenRef);
+        if (tokenRef.Mask is Mask.Special or Mask.Unknown) UnicodeProfile.ValidateUtf16(tokenRef.Text);
+        if (tokenRef.Mask is not Mask.Special and not Mask.Unknown && IsEmptyInput(tokenRef.Text)) return [];
         var result = new List<Token>();
         foreach (Token token in SplitOnSpecialTokens(tokenRef, Vocab))
         {
             if (token.Mask is Mask.Special or Mask.Unknown) { result.Add(token); continue; }
-            TokenizationUtils.CleanText(token, true);
+            TokenizationUtils.CleanText(token);
             TokenizationUtils.DecomposeNfkc(token);
             if (lowerCase) TokenizationUtils.Lowercase(token);
             if (token.Text.Length == 0) continue;
-            var replaced = new StringBuilder(token.Text.Length);
-            foreach (Rune scalar in token.Text.EnumerateRunes())
-                replaced.Append(TokenizationUtils.IsWhitespace(scalar) ? new Rune(TokenizationUtils.Metaspace) : scalar);
-            token.Text = replaced.ToString();
+            TokenizationUtils.ReplaceWhitespace(token);
             if (!token.Text.StartsWith(TokenizationUtils.Metaspace))
             {
-                uint[][] references = TokenAlignment.References(token);
-                TokenAlignment.Set(token, TokenizationUtils.Metaspace + token.Text,
-                    new[] { new[] { references[0].Min() } }.Concat(references).ToArray());
+                if (token.TracksOffsets)
+                {
+                    uint[][] references = TokenAlignment.References(token);
+                    TokenAlignment.Set(token, TokenizationUtils.Metaspace + token.Text,
+                        new[] { new[] { references[0].Min() } }.Concat(references).ToArray());
+                }
+                else token.ReplaceText(TokenizationUtils.Metaspace + token.Text);
             }
-            result.AddRange(model.ParseNodesToTokens(model.DecodeBackward(model.DecodeForwardTokenRef(token).ToArray())));
+            result.AddRange(model.Tokenize(token));
         }
         return result;
     }
 
+    /// <summary>Apply the template to truncated content, copying mutable offsets and source-position lists.</summary>
     public override TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets tokens1,
-        TokenIdsWithOffsets? tokens2 = null)
+        TokenIdsWithOffsets? tokens2 = null) => BuildInputCore(tokens1, tokens2, takeOwnership: false);
+
+    internal override int? GetBuiltInSpecialCount(bool paired) => GetType() == typeof(XLMRobertaTokenizer) ? (paired ? 4 : 2) : null;
+
+    internal override TokenIdsWithSpecialTokens BuildInputCore(TokenIdsWithOffsets tokens1,
+        TokenIdsWithOffsets? tokens2, bool takeOwnership)
     {
         var result = new TokenIdsWithSpecialTokens();
         void Special(string text, byte segment)
@@ -76,22 +95,16 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
             result.ReferenceOffsets.Add([]);
             result.Mask.Add(Mask.Special);
         }
-        void Sequence(TokenIdsWithOffsets tokens, byte segment)
-        {
-            result.TokenIds.AddRange(tokens.Ids);
-            result.SegmentIds.AddRange(Enumerable.Repeat(segment, tokens.Ids.Count));
-            result.SpecialTokensMask.AddRange(Enumerable.Repeat((byte)0, tokens.Ids.Count));
-            result.TokenOffsets.AddRange(tokens.Offsets);
-            result.ReferenceOffsets.AddRange(tokens.ReferenceOffsets);
-            result.Mask.AddRange(tokens.Masks);
-        }
+        ArgumentNullException.ThrowIfNull(tokens1);
+        tokens1.Validate();
+        tokens2?.Validate();
         Special(Vocab.GetClsValue(), 0);
-        Sequence(tokens1, 0);
+        result.Append(tokens1, 0, takeOwnership);
         Special(Vocab.GetSepValue(), 0);
         if (tokens2 != null)
         {
             Special(Vocab.GetSepValue(), 1);
-            Sequence(tokens2, 1);
+            result.Append(tokens2, 1, takeOwnership);
             Special(Vocab.GetSepValue(), 1);
         }
         return result;
@@ -99,5 +112,5 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
 
     /// <summary>Join pieces, replace SentencePiece whitespace markers, and remove boundary whitespace.</summary>
     public override string ConvertTokensToString(List<string> tokens) =>
-        string.Concat(tokens).Replace(TokenizationUtils.Metaspace, ' ').Trim();
+        UnicodeProfile.TrimWhiteSpace(string.Concat(tokens).Replace(TokenizationUtils.Metaspace, ' '));
 }

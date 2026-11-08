@@ -17,7 +17,7 @@ public sealed class XlmTokenizerFixture
     {
         string path = TestUtils.XlmRobertaFixture();
         Original = new(path, false);
-        Lowercase = new(Original.Vocab, Original.Model, true);
+        Lowercase = Original.WithLowerCase(true);
     }
 }
 
@@ -77,5 +77,11 @@ public sealed class TokenizerRegressionTests(XlmTokenizerFixture fixture)
         var vocab = new BaseVocab(new() { ["[UNK]"] = 0, ["hello"] = 1, ["world"] = 2 }, new());
         var tokenizer = new BaseTokenizer<BaseVocab>(vocab, false, false);
         Assert.Equal("hello world", tokenizer.Decode(new() { 1, 2 }, true, false));
+    }
+
+    [Fact]
+    public void SentencePieceDecodingUsesPinnedBoundaryWhitespace()
+    {
+        Assert.Equal("\uFFFE🧪",fixture.Original.ConvertTokensToString(["\u0085▁","\uFFFE🧪","\u2028"]));
     }
 }

@@ -6,6 +6,14 @@ namespace Lokad.Tokenizers.Tokenizer;
 /// </summary>
 public class TokenIdsWithOffsets
 {
+    internal void Validate()
+    {
+        if (Ids == null || Offsets == null || ReferenceOffsets == null || Masks == null ||
+            Ids.Count != Offsets.Count || Ids.Count != ReferenceOffsets.Count || Ids.Count != Masks.Count ||
+            ReferenceOffsets.Any(r => r == null))
+            throw new ArgumentException("IDs, offsets, reference offsets and masks must have equal lengths");
+    }
+
     /// <summary>
     /// Vector of token IDs
     /// </summary>
@@ -24,7 +32,7 @@ public class TokenIdsWithOffsets
     public List<List<uint>> ReferenceOffsets { get; set; } = [];
 
     /// <summary>
-    /// Masks tokens providing information on the type of tokens. This list has the same length as TokenIds.
+    /// Masks tokens providing information on the type of tokens. This list has the same length as Ids.
     /// </summary>
     public List<Mask> Masks { get; set; } = [];
 }

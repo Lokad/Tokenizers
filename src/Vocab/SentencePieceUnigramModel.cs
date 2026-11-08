@@ -10,6 +10,10 @@ public class SentencePieceModel
 {
     public TrieNode Root { get; set; } = new("");
     private float unknownScore = -100;
+    // Keep the existing float comparisons (and legacy tie-breaking) with ample
+    // headroom for any representable input length, including the unknown penalty.
+    private const double MaximumScoreMagnitude = (double)float.MaxValue / int.MaxValue / 4;
+    private static bool IsSupportedScore(float score) => float.IsFinite(score) && Math.Abs((double)score) <= MaximumScoreMagnitude;
 
     public static SentencePieceModel FromFile(string path) => FromModel(VocabHelper.OpenProtobufFile(path));
 
@@ -55,6 +59,8 @@ public class SentencePieceModel
             var piece = proto.Pieces[i];
             if (piece.Piece.Length == 0 || !seen.Add(piece.Piece) || !float.IsFinite(piece.Score))
                 throw new InvalidDataException("Vocabulary pieces must be nonempty, unique and have finite scores");
+            if (!IsSupportedScore(piece.Score))
+                throw new InvalidDataException($"model.pieces[{i}].score exceeds the supported cumulative score range");
             if (i >= 3 && piece.Type != ModelProto.Types.SentencePiece.Types.Type.Normal)
                 throw new NotSupportedException("Only normal pieces after the three SentencePiece special entries are supported");
         }
@@ -63,12 +69,13 @@ public class SentencePieceModel
     private void Insert(string text, float score, int index)
     {
         var node = Root;
+        int utf16 = 0, scalars = 0;
         foreach (Rune rune in text.EnumerateRunes())
         {
-            if (!node.Children.TryGetValue(rune, out var child))
-                node.Children.Add(rune, child = new TrieNode(node.Text + rune));
-            node = child;
+            utf16 += rune.Utf16SequenceLength;
+            node = node.GetOrAddChild(rune, text, utf16, ++scalars);
         }
+        node.Text = text;
         node.End = true;
         node.Score = score;
         node.Index = index;
@@ -76,35 +83,57 @@ public class SentencePieceModel
 
     public List<TrieNode> CommonPrefixSearch(string text)
     {
+        ArgumentNullException.ThrowIfNull(text);
+        UnicodeProfile.ValidateUtf16(text);
         var result = new List<TrieNode>();
         var node = Root;
         foreach (Rune rune in text.EnumerateRunes())
         {
-            if (!node.Children.TryGetValue(rune, out node)) break;
+            var child = node.FindChild(rune);
+            if (child == null) break;
+            node = child;
             if (node.End) result.Add(node);
         }
         return result;
     }
 
-    /// <summary>Compute best predecessor nodes once, without constructing suffix strings.</summary>
+    /// <summary>Compute best predecessor nodes for valid UTF-16, without constructing suffix strings.</summary>
+    /// <remarks>Raw segmentation performs no cleaning or normalization. Malformed UTF-16 is rejected.</remarks>
     public List<Node?> DecodeForwardTokenRef(Token token)
     {
-        Rune[] runes = token.Text.EnumerateRunes().ToArray();
-        uint[][] references = TokenAlignment.References(token);
+        ArgumentNullException.ThrowIfNull(token);
+        var path = FindPredecessors(token.Text);
+        var references = TokenAlignment.References(token);
+        var result = new List<Node?>(path.Runes.Length + 1) { null };
+        for (int end = 1; end <= path.Runes.Length; end++) result.Add(Materialize(path, end, references));
+        return result;
+    }
+
+    private readonly record struct Path(Rune[] Runes, float[] Scores, int[] Starts, TrieNode?[] Pieces);
+
+    private Path FindPredecessors(string text)
+    {
+        UnicodeProfile.ValidateUtf16(text);
+        Rune[] runes = text.EnumerateRunes().ToArray();
         var scores = Enumerable.Repeat(float.NegativeInfinity, runes.Length + 1).ToArray();
-        var starts = new int[runes.Length + 1];
+        var starts = Enumerable.Repeat(-1, runes.Length + 1).ToArray();
         var pieces = new TrieNode?[runes.Length + 1];
         scores[0] = 0;
         for (int start = 0; start < runes.Length; start++)
         {
+            if (!float.IsFinite(scores[start])) throw new InvalidDataException("Model has an unreachable or non-finite segmentation path");
             bool single = false;
             var node = Root;
             for (int end = start; end < runes.Length; end++)
             {
-                if (!node.Children.TryGetValue(runes[end], out node)) break;
+                var child = node.FindChild(runes[end]);
+                if (child == null) break;
+                node = child;
                 if (!node.End) continue;
+                if (!IsSupportedScore(node.Score)) throw new InvalidDataException("Model piece score exceeds the supported cumulative score range");
                 if (end == start) single = true;
                 float score = scores[start] + node.Score;
+                if (!float.IsFinite(score)) throw new InvalidDataException("Model cumulative score is not finite");
                 if (score > scores[end + 1])
                 {
                     scores[end + 1] = score;
@@ -119,49 +148,76 @@ public class SentencePieceModel
                 pieces[start + 1] = null;
             }
         }
-        var result = new List<Node?>(runes.Length + 1) { null };
-        for (int end = 1; end <= runes.Length; end++)
-        {
-            int start = starts[end];
-            var piece = pieces[end];
-            uint[][] mapped = references.AsSpan(start, end - start).ToArray();
-            uint[] positions = mapped.SelectMany(r => r).Distinct().Order().ToArray();
-            result.Add(new Node(piece?.Text ?? runes[start].ToString(), scores[end], piece?.Index ?? 0,
-                start, end, positions) { ScalarReferences = mapped });
-        }
-        return result;
+        return new(runes, scores, starts, pieces);
+    }
+
+    private static Node Materialize(Path path, int end, uint[][]? references, bool includePositions = true)
+    {
+        int start = path.Starts[end];
+        if (start < 0 || start >= end || !float.IsFinite(path.Scores[end]))
+            throw new InvalidDataException("Model has an invalid or unreachable predecessor");
+        var piece = path.Pieces[end];
+        var mapped = references?.AsSpan(start, end - start).ToArray();
+        return new Node(piece?.Text ?? path.Runes[start].ToString(), path.Scores[end], piece?.Index ?? 0,
+            start, end, mapped == null || !includePositions ? [] : TokenAlignment.SourcePositions(mapped)) { ScalarReferences = mapped };
+    }
+
+    internal List<Token> Tokenize(Token token)
+    {
+        var path = FindPredecessors(token.Text);
+        var references = token.TracksOffsets ? TokenAlignment.References(token) : null;
+        var nodes = new List<Node>();
+        for (int end = path.Runes.Length; end > 0; end = path.Starts[end]) nodes.Add(Materialize(path, end, references, includePositions: false));
+        nodes.Reverse();
+        return ParseNodesToTokens(nodes, token.TracksOffsets);
     }
 
     public List<Node> DecodeBackward(Node?[] nodes)
     {
+        ArgumentNullException.ThrowIfNull(nodes);
         if (nodes.Length == 0) return new();
         var result = new List<Node>();
-        for (Node? next = nodes[^1]; next != null; next = nodes[next.Start])
+        int cursor = nodes.Length - 1;
+        while (cursor > 0)
         {
-            if (next.Start < 0 || next.Start >= next.End || next.End >= nodes.Length)
+            Node next = nodes[cursor] ?? throw new ArgumentException("Missing predecessor", nameof(nodes));
+            if (next.End != cursor || next.Start < 0 || next.Start >= cursor)
                 throw new ArgumentException("Invalid predecessor chain", nameof(nodes));
             result.Add(next);
+            cursor = next.Start;
         }
+        if (nodes[0] != null) throw new ArgumentException("The origin must be a null sentinel", nameof(nodes));
         result.Reverse();
         return result;
     }
 
-    public List<Token> ParseNodesToTokens(List<Node> nodes)
+    public List<Token> ParseNodesToTokens(List<Node> nodes) => ParseNodesToTokens(nodes, true);
+
+    private List<Token> ParseNodesToTokens(List<Node> nodes, bool trackOffsets)
     {
+        ArgumentNullException.ThrowIfNull(nodes);
         var result = new List<Token>();
         for (int i = 0; i < nodes.Count;)
         {
+            if (nodes[i].Index != 0)
+            {
+                var node = nodes[i++];
+                var piece = new Token(node.Text, trackOffsets);
+                if (trackOffsets) TokenAlignment.Set(piece, node.Text,
+                    node.ScalarReferences ?? node.ReferenceOffsets.Select(p => new[] { p }).ToArray());
+                result.Add(piece);
+                continue;
+            }
             var text = new StringBuilder();
-            var references = new List<uint[]>();
-            bool unknown = nodes[i].Index == 0;
+            var references = trackOffsets ? new List<uint[]>() : null;
             do
             {
                 Node node = nodes[i++];
                 text.Append(node.Text);
-                references.AddRange(node.ScalarReferences ?? node.ReferenceOffsets.Select(p => new[] { p }).ToArray());
-            } while (unknown && i < nodes.Count && nodes[i].Index == 0);
-            var token = new Token(text.ToString()) { Mask = unknown ? Mask.Unknown : Mask.None };
-            TokenAlignment.Set(token, token.Text, references.ToArray());
+                references?.AddRange(node.ScalarReferences ?? node.ReferenceOffsets.Select(p => new[] { p }).ToArray());
+            } while (i < nodes.Count && nodes[i].Index == 0);
+            var token = new Token(text.ToString(), trackOffsets) { Mask = Mask.Unknown };
+            if (references != null) TokenAlignment.Set(token, token.Text, references.ToArray());
             result.Add(token);
         }
         PopulateMasks(result, TokenizationUtils.Metaspace);
@@ -176,8 +232,8 @@ public class SentencePieceModel
             if (token.Mask is Mask.Unknown or Mask.Special) { previous = token.Mask; continue; }
             if (Rune.TryGetRuneAt(token.Text, 0, out var rune) && rune.Utf16SequenceLength == token.Text.Length)
             {
-                if (Rune.IsPunctuation(rune)) { token.Mask = previous = Mask.Punctuation; continue; }
-                if (Rune.IsWhiteSpace(rune)) { token.Mask = previous = Mask.Whitespace; continue; }
+                if (UnicodeProfile.IsPunctuation(rune)) { token.Mask = previous = Mask.Punctuation; continue; }
+                if (UnicodeProfile.IsWhiteSpace(rune)) { token.Mask = previous = Mask.Whitespace; continue; }
             }
             token.Mask = !token.Text.StartsWith(whitespaceToken) && previous is not Mask.Punctuation and not Mask.Whitespace
                 ? Mask.Continuation : Mask.None;

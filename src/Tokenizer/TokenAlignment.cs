@@ -1,4 +1,5 @@
 using System.Text;
+using System.Runtime.InteropServices;
 
 namespace Lokad.Tokenizers.Tokenizer;
 
@@ -7,7 +8,7 @@ internal static class TokenAlignment
 {
     internal static uint[][] References(Token token)
     {
-        int count = token.Text.EnumerateRunes().Count();
+        int count = token.ScalarCount;
         if (token.ScalarReferences is { } mapped && mapped.Length == count) return mapped;
         if (token.ReferenceOffsets.Count != count)
             throw new ArgumentException("A token must supply one source position per Unicode scalar", nameof(token));
@@ -18,53 +19,83 @@ internal static class TokenAlignment
     {
         if (text.EnumerateRunes().Count() != references.Length || references.Any(r => r.Length == 0))
             throw new ArgumentException("Text and scalar source mappings must align", nameof(references));
-        token.Text = text;
-        token.ReferenceOffsets = references.Select(r => r.Min()).ToArray();
+        token.ReplaceText(text);
+        var starts = new uint[references.Length];
+        uint minimum = uint.MaxValue, maximum = 0;
+        for (int i = 0; i < references.Length; i++)
+        {
+            uint start = uint.MaxValue;
+            foreach (uint position in references[i])
+            {
+                start = Math.Min(start, position);
+                minimum = Math.Min(minimum, position);
+                maximum = Math.Max(maximum, position);
+            }
+            starts[i] = start;
+        }
+        token.ReferenceOffsets = starts;
         token.ScalarReferences = references;
-        uint[] positions = references.SelectMany(r => r).ToArray();
-        token.Offset = positions.Length == 0 ? new Offset(0, 0) : new Offset(positions.Min(), checked(positions.Max() + 1));
+        token.Offset = references.Length == 0 ? new Offset(0, 0) : new Offset(minimum, checked(maximum + 1));
     }
 
-    internal static IReadOnlyList<uint> SourcePositions(Token token) =>
+    internal static uint[] SourcePositions(Token token) =>
         token.ScalarReferences is { } mapped
-            ? mapped.SelectMany(r => r).Distinct().Order().ToArray()
-            : token.ReferenceOffsets;
+            ? SourcePositions(mapped) : token.ReferenceOffsets.ToArray();
 
-    internal static Token Slice(Token token, string text, int scalarStart, int scalarCount, Mask mask)
+    internal static uint[] SourcePositions(uint[][] references)
     {
-        var result = new Token(text) { Mask = mask };
-        Set(result, text, References(token).AsSpan(scalarStart, scalarCount).ToArray());
+        int count = 0;
+        foreach (var group in references) count = checked(count + group.Length);
+        var positions = new uint[count];
+        int unique = CopySourcePositions(references, positions);
+        if (unique != positions.Length) Array.Resize(ref positions, unique);
+        return positions;
+    }
+
+    internal static List<uint> SourcePositionList(Token token)
+    {
+        if (token.ScalarReferences is not { } mapped) return token.ReferenceOffsets.ToList();
+        int count = 0;
+        foreach (var group in mapped) count = checked(count + group.Length);
+        var positions = new List<uint>(count);
+        CollectionsMarshal.SetCount(positions, count);
+        int unique = CopySourcePositions(mapped, CollectionsMarshal.AsSpan(positions));
+        positions.RemoveRange(unique, count - unique);
+        return positions;
+    }
+
+    private static int CopySourcePositions(uint[][] references, Span<uint> positions)
+    {
+        int index = 0;
+        bool ordered = true;
+        foreach (var group in references)
+            foreach (uint position in group)
+            {
+                if (index > 0 && position < positions[index - 1]) ordered = false;
+                positions[index++] = position;
+            }
+        if (!ordered) positions.Sort();
+        int unique = 0;
+        foreach (uint position in positions)
+            if (unique == 0 || position != positions[unique - 1]) positions[unique++] = position;
+        return unique;
+    }
+
+    // Callers compute the parent mapping once, outside their slicing loops.
+    internal static Token Slice(string text, uint[][]? references, int scalarStart, int scalarCount, Mask mask)
+    {
+        var result = new Token(text, references != null) { Mask = mask };
+        if (references != null) Set(result, text, references.AsSpan(scalarStart, scalarCount).ToArray());
         return result;
     }
 
     internal static void Normalize(Token token, NormalizationForm form)
     {
-        string normalized = token.Text.Normalize(form);
+        if (UnicodeProfile.CanSkipNormalization(token.Text, form)) return;
+        string normalized = UnicodeProfile.Normalize(token.Text, form,
+            token.TracksOffsets ? () => References(token) : null, out var mapped);
         if (normalized == token.Text) return;
-        var decomposition = form is NormalizationForm.FormKC or NormalizationForm.FormKD
-            ? NormalizationForm.FormKD : NormalizationForm.FormD;
-        var sources = new Dictionary<Rune, Queue<uint[]>>();
-        uint[][] references = References(token);
-        int index = 0;
-        // Canonical reordering is stable for occurrences of the same scalar.
-        // Queues preserve that order while composition combines their origins.
-        foreach (Rune scalar in token.Text.EnumerateRunes())
-        {
-            foreach (Rune part in scalar.ToString().Normalize(decomposition).EnumerateRunes())
-            {
-                if (!sources.TryGetValue(part, out var queue)) sources.Add(part, queue = new());
-                queue.Enqueue(references[index]);
-            }
-            index++;
-        }
-        var mapped = new List<uint[]>();
-        foreach (Rune scalar in normalized.EnumerateRunes())
-        {
-            var positions = new SortedSet<uint>();
-            foreach (Rune part in scalar.ToString().Normalize(NormalizationForm.FormD).EnumerateRunes())
-                positions.UnionWith(sources[part].Dequeue());
-            mapped.Add(positions.ToArray());
-        }
-        Set(token, normalized, mapped.ToArray());
+        if (mapped == null) token.ReplaceText(normalized);
+        else Set(token, normalized, mapped);
     }
 }

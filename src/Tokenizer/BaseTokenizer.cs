@@ -43,19 +43,25 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
     }
 
     public T Vocab => vocab;
-    public List<string> Tokenize(string text) => TokenizeWithOffsets(text).Tokens;
+    public virtual List<string> Tokenize(string text)
+    {
+        if (IsEmptyInput(text)) return [];
+        // Unknown derived tokenizers retain their full-metadata virtual input contract.
+        var token = new Token(text, trackOffsets: GetType() != typeof(BaseTokenizer<T>));
+        return TokenizeToTokens(token).Select(t => t.Text).ToList();
+    }
 
     public TokensWithOffsets TokenizeWithOffsets(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        if (string.IsNullOrWhiteSpace(text)) return new();
+        if (IsEmptyInput(text)) return new();
         var result = new TokensWithOffsets();
         foreach (Token token in TokenizeToTokens(new Token(text)))
         {
             IReadOnlyList<uint> positions = TokenAlignment.SourcePositions(token);
             result.Tokens.Add(token.Text);
             result.Offsets.Add(positions.Count == 0 ? null : new Offset(positions.Min(), checked(positions.Max() + 1)));
-            result.ReferenceOffsets.Add(positions.ToArray());
+            result.ReferenceOffsets.Add(positions);
             result.Masks.Add(token.Mask);
         }
         return result;
@@ -64,22 +70,32 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
     public virtual List<Token> TokenizeToTokens(Token initialToken)
     {
         ArgumentNullException.ThrowIfNull(initialToken);
+        if (initialToken.Mask is Mask.Special or Mask.Unknown) UnicodeProfile.ValidateUtf16(initialToken.Text);
+        if (initialToken.Mask is not Mask.Special and not Mask.Unknown && IsEmptyInput(initialToken.Text)) return [];
         var result = new List<Token>();
         // Recognize special tokens before cleaning or splitting their content.
         foreach (Token part in SplitOnSpecialTokens(initialToken, vocab))
         {
             if (part.Mask is Mask.Special or Mask.Unknown) { result.Add(part); continue; }
-            TokenizationUtils.CleanText(part, true);
+            TokenizationUtils.CleanText(part);
             if (lowerCase) TokenizationUtils.Lowercase(part);
             if (stripAccents) TokenizationUtils.StripAccents(part);
-            foreach (Token word in Split(part, Rune.IsWhiteSpace, null))
-                foreach (Token punctuation in Split(word, Rune.IsPunctuation, Mask.Punctuation))
-                    result.AddRange(Split(punctuation, IsCjk, Mask.CJK));
+            foreach (Token word in Split(part, UnicodeProfile.IsWhiteSpace, null))
+                foreach (Token punctuation in Split(word, UnicodeProfile.IsPunctuation, Mask.Punctuation))
+                    if (punctuation.Mask == Mask.Punctuation) result.Add(punctuation);
+                    else result.AddRange(Split(punctuation, IsCjk, Mask.CJK));
         }
         return result;
     }
 
     public void DecomposeNfkc(Token token) => TokenizationUtils.DecomposeNfkc(token);
+
+    protected bool IsEmptyInput(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        UnicodeProfile.ValidateUtf16(text);
+        return text.Length == 0 || UnicodeProfile.IsWhiteSpace(text) && !specialTokens.ContainsWhitespaceLiteral(text);
+    }
     public List<long> ConvertTokensToIds(List<string> tokens) => tokens.Select(vocab.TokenToId).ToList();
 
     public TokenizedInput Encode(string inputText, string? additionalInputText, int maxLen,
@@ -89,25 +105,36 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         ArgumentOutOfRangeException.ThrowIfNegative(maxLen);
         ArgumentOutOfRangeException.ThrowIfNegative(stride);
         if (!Enum.IsDefined(truncationStrategy)) throw new ArgumentOutOfRangeException(nameof(truncationStrategy));
+        int? knownSpecialCount = GetBuiltInSpecialCount(additionalInputText != null);
+        void CheckMinimum(int count)
+        {
+            if (maxLen < count) throw new ValueTokenizerException("Maximum length is smaller than the required special-token template");
+        }
+        if (knownSpecialCount is int minimum) CheckMinimum(minimum);
         TokenIdsWithOffsets Convert(string text)
         {
-            var tokens = TokenizeWithOffsets(text);
-            return new()
+            var result = new TokenIdsWithOffsets();
+            if (IsEmptyInput(text)) return result;
+            foreach (Token token in TokenizeToTokens(new Token(text)))
             {
-                Ids = ConvertTokensToIds(tokens.Tokens),
-                Offsets = tokens.Offsets,
-                ReferenceOffsets = tokens.ReferenceOffsets.Select(r => r.ToList()).ToList(),
-                Masks = tokens.Masks
-            };
+                var positions = TokenAlignment.SourcePositionList(token);
+                result.Ids.Add(vocab.TokenToId(token.Text));
+                result.Offsets.Add(positions.Count == 0 ? null : new Offset(positions.Min(), checked(positions.Max() + 1)));
+                result.ReferenceOffsets.Add(positions);
+                result.Masks.Add(token.Mask);
+            }
+            return result;
         }
         var first = Convert(inputText);
         var second = additionalInputText == null ? null : Convert(additionalInputText);
-        int specialCount = BuildInputWithSpecialTokens(new(), second == null ? null : new()).TokenIds.Count;
-        if (maxLen < specialCount) throw new ValueTokenizerException("Maximum length is smaller than the required special-token template");
+        int specialCount = knownSpecialCount ?? BuildInputWithSpecialTokens(new(), second == null ? null : new()).TokenIds.Count;
+        if (!knownSpecialCount.HasValue) CheckMinimum(specialCount);
         int remove = Math.Max(0, checked(first.Ids.Count + (second?.Ids.Count ?? 0) + specialCount) - maxLen);
         var (truncatedFirst, truncatedSecond, overflow, _) =
-            TokenizationUtils.TruncateSequences(first, second, remove, truncationStrategy, stride);
-        var merged = BuildInputWithSpecialTokens(truncatedFirst, truncatedSecond);
+            TokenizationUtils.TruncateSequences(first, second, remove, truncationStrategy, stride, includeOverflowOffsets: false);
+        var merged = knownSpecialCount.HasValue
+            ? BuildInputCore(truncatedFirst, truncatedSecond, takeOwnership: true)
+            : BuildInputWithSpecialTokens(truncatedFirst, truncatedSecond);
         return new()
         {
             TokenIds = merged.TokenIds, SegmentIds = merged.SegmentIds,
@@ -117,22 +144,19 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         };
     }
 
-    /// <summary>Combine sequences without modifying either input.</summary>
+    /// <summary>Combine sequences into owned lists and metadata, independently mutable from either input.</summary>
     public virtual TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets inputTokens,
-        TokenIdsWithOffsets? additionalInputTokens = null)
+        TokenIdsWithOffsets? additionalInputTokens = null) => BuildInputCore(inputTokens, additionalInputTokens, takeOwnership: false);
+
+    // Unknown derived classes keep the public virtual template hook and its defensive ownership boundary.
+    internal virtual int? GetBuiltInSpecialCount(bool paired) => GetType() == typeof(BaseTokenizer<T>) ? 0 : null;
+
+    internal virtual TokenIdsWithSpecialTokens BuildInputCore(TokenIdsWithOffsets inputTokens,
+        TokenIdsWithOffsets? additionalInputTokens, bool takeOwnership)
     {
         var result = new TokenIdsWithSpecialTokens();
-        void Add(TokenIdsWithOffsets input, byte segment)
-        {
-            result.TokenIds.AddRange(input.Ids);
-            result.SegmentIds.AddRange(Enumerable.Repeat(segment, input.Ids.Count));
-            result.SpecialTokensMask.AddRange(Enumerable.Repeat((byte)0, input.Ids.Count));
-            result.TokenOffsets.AddRange(input.Offsets);
-            result.ReferenceOffsets.AddRange(input.ReferenceOffsets);
-            result.Mask.AddRange(input.Masks);
-        }
-        Add(inputTokens, 0);
-        if (additionalInputTokens != null) Add(additionalInputTokens, 1);
+        result.Append(inputTokens, 0, takeOwnership);
+        if (additionalInputTokens != null) result.Append(additionalInputTokens, 1, takeOwnership);
         return result;
     }
 
@@ -157,15 +181,13 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         if (token.Mask is Mask.Special or Mask.Unknown) return new() { token.Clone() };
         var matcher = ReferenceEquals(vocabulary, vocab) ? specialTokens :
             new LiteralTokenMatcher(vocabulary.SpecialValues.Select(p => (p.Key, p.Value)));
-        var references = TokenAlignment.References(token);
+        var references = token.TracksOffsets ? TokenAlignment.References(token) : null;
         var result = new List<Token>();
         int position = 0, scalar = 0, start = 0, startScalar = 0;
         void Add(int end, int endScalar, Mask mask)
         {
             if (end == start) return;
-            var part = new Token(token.Text[start..end]) { Mask = mask };
-            TokenAlignment.Set(part, part.Text, references.AsSpan(startScalar, endScalar - startScalar).ToArray());
-            result.Add(part);
+            result.Add(TokenAlignment.Slice(token.Text[start..end], references, startScalar, endScalar - startScalar, mask));
         }
         while (position < token.Text.Length)
         {
@@ -191,21 +213,20 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
     private static List<Token> Split(Token token, Func<Rune, bool> isSeparator, Mask? separatorMask)
     {
         if (token.Mask is Mask.Special or Mask.Unknown) return new() { token.Clone() };
-        var runes = token.Text.EnumerateRunes().ToArray();
-        var references = TokenAlignment.References(token);
+        if (token.Text.Length == 0) return [];
+        var references = token.TracksOffsets ? TokenAlignment.References(token) : null;
         var result = new List<Token>();
         int start = 0, startUtf16 = 0, utf16 = 0;
         void Add(int begin, int end, int beginUtf16, int endUtf16, Mask mask)
         {
             if (begin == end) return;
-            var part = new Token(token.Text[beginUtf16..endUtf16]) { Mask = mask };
-            TokenAlignment.Set(part, part.Text, references.AsSpan(begin, end - begin).ToArray());
-            result.Add(part);
+            result.Add(TokenAlignment.Slice(token.Text[beginUtf16..endUtf16], references, begin, end - begin, mask));
         }
-        for (int i = 0; i < runes.Length; i++)
+        int i = 0;
+        foreach (Rune rune in token.Text.EnumerateRunes())
         {
-            int next = utf16 + runes[i].Utf16SequenceLength;
-            if (isSeparator(runes[i]))
+            int next = utf16 + rune.Utf16SequenceLength;
+            if (isSeparator(rune))
             {
                 Add(start, i, startUtf16, utf16, token.Mask);
                 if (separatorMask is { } mask) Add(i, i + 1, utf16, next, mask);
@@ -213,8 +234,10 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
                 startUtf16 = next;
             }
             utf16 = next;
+            i++;
         }
-        Add(start, runes.Length, startUtf16, utf16, token.Mask);
+        if (start == 0) result.Add(token);
+        else Add(start, i, startUtf16, utf16, token.Mask);
         return result;
     }
 

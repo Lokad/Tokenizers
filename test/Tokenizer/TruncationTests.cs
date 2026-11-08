@@ -6,6 +6,32 @@ namespace Lokad.Tokenizers.Tests.Tokenizer;
 
 public sealed class TruncationTests
 {
+    [Theory]
+    [InlineData(new long[] { 10 }, new long[] { 20,21,22,23 }, 1, 2, new long[] { 21,22,23 })]
+    [InlineData(new long[] { 10,11,12,13 }, new long[] { 20 }, 1, 2, new long[] { 11,12,13 })]
+    [InlineData(new long[] { }, new long[] { 20,21,22 }, 1, 9, new long[] { 20,21,22 })]
+    [InlineData(new long[] { 10,11,12 }, new long[] { }, 1, 9, new long[] { 10,11,12 })]
+    [InlineData(new long[] { 10,11,12 }, new long[] { 20,21 }, 3, 9, new long[] { 10,21,11,12 })]
+    public void LongestFirstStrideUsesTheTrimmedSideOrFirstSideForMixedRemovals(
+        long[] first, long[] second, int remove, int stride, long[] expected)
+    {
+        var (_, _, overflow, offsets) = TokenizationUtils.TruncateSequences(
+            Sequence(first), Sequence(second), remove, TruncationStrategy.LongestFirst, stride);
+        Assert.Equal(expected, overflow);
+        Assert.Equal(expected.Select(i => new Offset((uint)i, (uint)i + 1)), offsets);
+    }
+
+    [Fact]
+    public void TruncationKeepsMultiOriginReferencesWithTheirTokens()
+    {
+        var input = new TokenIdsWithOffsets { Ids=[10,11], Offsets=[new(0,2),new(2,4)],
+            ReferenceOffsets=[[0,1],[2,3]], Masks=[Mask.None,Mask.None] };
+        var result=TokenizationUtils.TruncateSequences(input,null,1,TruncationStrategy.OnlyFirst,0);
+        Assert.Equal(new long[]{10},result.Item1.Ids);
+        Assert.Equal(new uint[][]{[0,1]},result.Item1.ReferenceOffsets.Select(r=>r.ToArray()));
+        Assert.Equal(new long[]{11},result.Item3);
+        Assert.Equal(new Offset?[]{new(2,4)},result.Item4);
+    }
     static TokenIdsWithOffsets Sequence(params long[] ids) => new()
     {
         Ids = ids.ToList(), Offsets = ids.Select(i => (Offset?)new Offset((uint)i, (uint)i + 1)).ToList(),

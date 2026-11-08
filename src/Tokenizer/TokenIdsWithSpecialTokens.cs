@@ -2,10 +2,22 @@ namespace Lokad.Tokenizers.Tokenizer;
 
 /// <summary>
 /// Encoded input with special tokens
-/// Intermediate tokenization steps before truncation to a maximum length, after encoding and addition of special tokens
+/// Combines already-truncated content with the model's special-token template.
 /// </summary>
 public class TokenIdsWithSpecialTokens
 {
+    internal void Append(TokenIdsWithOffsets input, byte segment, bool takeOwnership = false)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        input.Validate();
+        TokenIds.AddRange(input.Ids);
+        SegmentIds.AddRange(Enumerable.Repeat(segment, input.Ids.Count));
+        SpecialTokensMask.AddRange(Enumerable.Repeat((byte)0, input.Ids.Count));
+        TokenOffsets.AddRange(takeOwnership ? input.Offsets : input.Offsets.Select(o => o == null ? null : new Offset(o.Begin, o.End)));
+        ReferenceOffsets.AddRange(takeOwnership ? input.ReferenceOffsets : input.ReferenceOffsets.Select(r => r.ToList()));
+        Mask.AddRange(input.Masks);
+    }
+
     /// <summary>
     /// Vector of token IDs
     /// </summary>

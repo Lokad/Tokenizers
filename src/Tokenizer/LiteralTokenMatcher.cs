@@ -10,12 +10,15 @@ internal sealed class LiteralTokenMatcher
         internal Match? Token;
     }
     private readonly Node root = new();
+    internal bool HasWhitespaceLiterals { get; }
 
     internal LiteralTokenMatcher(IEnumerable<(string Text, long Id)> tokens)
     {
         foreach (var (text, id) in tokens)
         {
             ArgumentException.ThrowIfNullOrEmpty(text);
+            UnicodeProfile.ValidateUtf16(text);
+            if (UnicodeProfile.IsWhiteSpace(text)) HasWhitespaceLiterals = true;
             var node = root;
             foreach (char character in text)
             {
@@ -39,5 +42,13 @@ internal sealed class LiteralTokenMatcher
         }
         match = selected.GetValueOrDefault();
         return selected.HasValue;
+    }
+
+    internal bool ContainsWhitespaceLiteral(string text)
+    {
+        if (!HasWhitespaceLiterals) return false;
+        for (int i = 0; i < text.Length; i++)
+            if (TryMatch(text.AsSpan(i), out _)) return true;
+        return false;
     }
 }

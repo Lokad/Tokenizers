@@ -8,6 +8,19 @@ namespace Lokad.Tokenizers.Tests.Tokenizer;
 [Collection("XLM-R")]
 public sealed class XLMRobertaTokenizerTests(XlmTokenizerFixture fixture)
 {
+    [Fact]
+    public void MultiPieceWordMasksSurviveEncodingAndTemplateInsertion()
+    {
+        const string text = "unbelievable12345!";
+        var tokens = fixture.Original.TokenizeWithOffsets(text);
+        Mask[] masks = [Mask.None, Mask.Continuation, Mask.Continuation, Mask.Continuation,
+            Mask.Continuation, Mask.Continuation, Mask.Punctuation];
+        Assert.Equal(new[] { "▁un", "beli", "ev", "able", "12", "345", "!" }, tokens.Tokens);
+        Assert.Equal(masks, tokens.Masks);
+        Assert.Equal(new[] { Mask.Special }.Concat(masks).Append(Mask.Special),
+            fixture.Original.Encode(text, null, 64, TruncationStrategy.LongestFirst, 0).Mask);
+    }
+
     static string PathFor(string name) => Path.Combine(AppContext.BaseDirectory,"Fixture",name);
     public static IEnumerable<object[]> Cases(string section)
     {

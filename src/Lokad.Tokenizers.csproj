@@ -26,6 +26,8 @@
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Unicode/Unicode15_1.bin" LogicalName="Lokad.Tokenizers.Unicode15_1.bin" />
+    <None Update="Unicode/LICENSE.txt" Pack="true" PackagePath="licenses/Unicode.txt" />
     <None Include="../LICENSE.txt;../README.md;../CHANGELOG.md;../icon.png" Pack="true" PackagePath="/" Visible="false" />
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
