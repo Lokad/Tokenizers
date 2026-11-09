@@ -1,5 +1,6 @@
-param([switch]$Check)
+param([switch]$Check, [string]$CheckFile)
 $ErrorActionPreference = 'Stop'
+if ($CheckFile -and !$Check) { throw '-CheckFile requires -Check' }
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $version = '3.33.5'
 $expectedHash = '7411B096BAD0C21E8C8FEAE40FE7C7248CA4694D228B658EB7838C58EC9C234D'
@@ -29,8 +30,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Protobuf generation failed' }
 $source = [IO.File]::ReadAllText((Join-Path $generated 'SentencepieceModel.cs')).Replace("`r`n", "`n")
 $target = Join-Path $schema 'SentencepieceModel.cs'
 if ($Check) {
+    if ($CheckFile) { $target = [IO.Path]::GetFullPath($CheckFile) }
     $existing = [IO.File]::ReadAllText($target).Replace("`r`n", "`n")
-    if ($source -cne $existing) { throw 'Generated protobuf C# differs. Run eng/generate-protobuf.ps1 and review the change.' }
+    if (![string]::Equals($source, $existing, [StringComparison]::Ordinal)) { throw 'Generated protobuf C# differs. Run eng/generate-protobuf.ps1 and review the change.' }
     Write-Host 'PASS canonical protobuf generation'
 } else {
     [IO.File]::WriteAllText($target, $source, [Text.UTF8Encoding]::new($false))

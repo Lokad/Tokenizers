@@ -40,6 +40,8 @@ jobs:
         run: dotnet restore Lokad.Tokenizers.slnx --locked-mode --tl:off -v minimal
       - name: Verify canonical protobuf generation
         run: ./eng/generate-protobuf.ps1 -Check
+      - name: Test protobuf generation rejection
+        run: ./eng/test-protobuf-generation.ps1
       - name: Verify pinned Unicode generation
         run: python eng/generate-unicode.py --check
       - name: Build Release
