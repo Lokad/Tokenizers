@@ -22,13 +22,18 @@ public class BaseVocab : IVocab
     {
         ArgumentNullException.ThrowIfNull(values);
         ArgumentNullException.ThrowIfNull(specialTokenMap);
-        if (values.Any(p => string.IsNullOrEmpty(p.Key) || p.Value < 0))
-            throw new ArgumentException("Vocabulary tokens must be nonempty and IDs nonnegative", nameof(values));
-        this.values = new(values, StringComparer.Ordinal);
-        if (values.Values.Distinct().Count() != values.Count)
-            throw new ArgumentException("Vocabulary IDs must be unique", nameof(values));
-        indices = this.values.ToDictionary(p => p.Value, p => p.Key);
-        maximumId = this.values.Values.DefaultIfEmpty(-1).Max();
+        this.values = new(values.Count, StringComparer.Ordinal);
+        indices = new(values.Count);
+        maximumId = -1;
+        foreach (var (token, id) in values)
+        {
+            if (string.IsNullOrEmpty(token) || id < 0)
+                throw new ArgumentException("Vocabulary tokens must be nonempty and IDs nonnegative", nameof(values));
+            if (!indices.TryAdd(id, token))
+                throw new ArgumentException("Vocabulary IDs must be unique", nameof(values));
+            this.values.Add(token, id);
+            maximumId = Math.Max(maximumId, id);
+        }
         specialTokens = specialTokenMap.Copy();
         var specials = new Dictionary<string, long>(StringComparer.Ordinal);
         specialTokens.RegisterSpecialValues(this.values, specials);
@@ -66,15 +71,18 @@ public class BaseVocab : IVocab
     public void AddTokens(IEnumerable<string> tokens)
     {
         ArgumentNullException.ThrowIfNull(tokens);
+        // Iterators are arbitrary caller code: evaluate them before acquiring a
+        // vocabulary lock, then filter against the latest dictionary under it.
+        var additions = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string token in tokens)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(token);
+            if (seen.Add(token)) additions.Add(token);
+        }
         lock (mutation)
         {
-            var additions = new List<string>();
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (string token in tokens)
-            {
-                ArgumentException.ThrowIfNullOrEmpty(token);
-                if (!values.ContainsKey(token) && seen.Add(token)) additions.Add(token);
-            }
+            additions.RemoveAll(values.ContainsKey);
             if (additions.Count == 0) return;
             _ = checked(maximumId + additions.Count);
             foreach (string token in additions)

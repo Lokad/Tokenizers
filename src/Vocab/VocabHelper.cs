@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using Lokad.Tokenizers.Exceptions;
 using Lokad.Tokenizers.Tokenizer;
 
@@ -10,11 +11,33 @@ public static class VocabHelper
     public static Dictionary<TValue, TKey> SwapKeyValue<TKey, TValue>(Dictionary<TKey, TValue> dictionary)
         where TKey : notnull where TValue : notnull => dictionary.ToDictionary(p => p.Value, p => p.Key);
 
+    /// <summary>Read strict UTF-8, or BOM-identified UTF-8/UTF-16/UTF-32, one token per line.</summary>
     public static Dictionary<string, long> ReadFlatFile(string path)
     {
         CheckFile(path);
-        return File.ReadAllLines(path).Select((text, id) => (text, id))
-            .ToDictionary(p => p.text, p => (long)p.id, StringComparer.Ordinal);
+        using var stream = File.OpenRead(path);
+        Span<byte> prefix = stackalloc byte[4];
+        int size = stream.ReadAtLeast(prefix, 4, throwOnEndOfStream: false), preamble = 0;
+        Encoding encoding = new UTF8Encoding(false, true);
+        if (size >= 4 && prefix[..4].SequenceEqual<byte>([0xFF,0xFE,0,0]))
+        { encoding = new UTF32Encoding(false, false, true); preamble = 4; }
+        else if (size >= 4 && prefix[..4].SequenceEqual<byte>([0,0,0xFE,0xFF]))
+        { encoding = new UTF32Encoding(true, false, true); preamble = 4; }
+        else if (size >= 3 && prefix[..3].SequenceEqual<byte>([0xEF,0xBB,0xBF])) preamble = 3;
+        else if (size >= 2 && prefix[..2].SequenceEqual<byte>([0xFF,0xFE]))
+        { encoding = new UnicodeEncoding(false, false, true); preamble = 2; }
+        else if (size >= 2 && prefix[..2].SequenceEqual<byte>([0xFE,0xFF]))
+        { encoding = new UnicodeEncoding(true, false, true); preamble = 2; }
+        stream.Position = preamble;
+        using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: false);
+        var values = new Dictionary<string, long>(StringComparer.Ordinal);
+        try
+        {
+            while (reader.ReadLine() is { } token) values.Add(token, values.Count);
+        }
+        catch (DecoderFallbackException error)
+        { throw new InvalidDataException("Invalid " + encoding.WebName + " vocabulary text in " + path, error); }
+        return values;
     }
 
     /// <summary>Read nonempty token names and unique nonnegative Int64 IDs; duplicate names are rejected.</summary>
