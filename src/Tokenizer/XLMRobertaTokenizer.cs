@@ -37,8 +37,13 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
     }
 
     /// <summary>Create an encoder with the requested casing, sharing this vocabulary and segmentation model.</summary>
-    /// <remarks>Finish vocabulary additions before encoding concurrently through either instance.</remarks>
-    public XLMRobertaTokenizer WithLowerCase(bool lowerCase) => new(Vocab, model, lowerCase);
+    /// <remarks>Finish vocabulary additions before encoding concurrently through either instance. Derived classes must override this factory to preserve their additional behavior.</remarks>
+    public virtual XLMRobertaTokenizer WithLowerCase(bool lowerCase)
+    {
+        if (GetType() != typeof(XLMRobertaTokenizer))
+            throw new NotSupportedException("Derived tokenizers must override WithLowerCase to preserve their behavior");
+        return new(Vocab, model, lowerCase);
+    }
 
     protected override bool IsEmptyInput(string text) => base.IsEmptyInput(text) ||
         TokenizationUtils.IsEmptyAfterCleaning(text) && !ContainsSpecialToken(text);
@@ -56,7 +61,7 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
         if (tokenRef.Mask is Mask.Special or Mask.Unknown) UnicodeProfile.ValidateUtf16(tokenRef.Text);
         if (tokenRef.Mask is not Mask.Special and not Mask.Unknown && IsEmptyInput(tokenRef.Text)) return [];
         var result = new List<Token>();
-        foreach (Token token in SplitOnSpecialTokens(tokenRef, Vocab))
+        foreach (Token token in SplitOnSpecialTokens(tokenRef))
         {
             if (token.Mask is Mask.Special or Mask.Unknown) { result.Add(token); continue; }
             TokenizationUtils.CleanText(token);

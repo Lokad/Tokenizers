@@ -12,6 +12,7 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
     private readonly bool lowerCase;
     private readonly bool stripAccents;
     private readonly LiteralTokenMatcher specialTokens;
+    private readonly IVocab literalVocabulary;
 
     /// <summary>Load a supplied BaseVocab flat file or XlmRobertaVocab protobuf and a special-token mapping.</summary>
     public BaseTokenizer(string path, bool lowerCase, bool stripAccents, string specialTokenMappingPath)
@@ -27,6 +28,7 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         this.vocab = vocab ?? throw new ArgumentNullException(nameof(vocab));
         this.lowerCase = lowerCase;
         this.stripAccents = stripAccents;
+        literalVocabulary = vocab;
         specialTokens = new LiteralTokenMatcher(vocab.SpecialValues.Select(p => (p.Key, p.Value)));
     }
 
@@ -74,7 +76,7 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         if (initialToken.Mask is not Mask.Special and not Mask.Unknown && IsEmptyInput(initialToken.Text)) return [];
         var result = new List<Token>();
         // Recognize special tokens before cleaning or splitting their content.
-        foreach (Token part in SplitOnSpecialTokens(initialToken, vocab))
+        foreach (Token part in SplitOnSpecialTokens(initialToken))
         {
             if (part.Mask is Mask.Special or Mask.Unknown) { result.Add(part); continue; }
             TokenizationUtils.CleanText(part);
@@ -136,6 +138,11 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         var merged = knownSpecialCount.HasValue
             ? BuildInputCore(truncatedFirst, truncatedSecond, takeOwnership: true)
             : BuildInputWithSpecialTokens(truncatedFirst, truncatedSecond);
+        if (!knownSpecialCount.HasValue && merged.TokenIds.Count !=
+            truncatedFirst.Ids.Count + (truncatedSecond?.Ids.Count ?? 0) + specialCount)
+            throw new InvalidOperationException("Derived templates must insert a content-independent number of tokens");
+        if (merged.TokenIds.Count > maxLen)
+            throw new ValueTokenizerException("The special-token template exceeds the maximum length");
         return new()
         {
             TokenIds = merged.TokenIds, SegmentIds = merged.SegmentIds,
@@ -146,6 +153,7 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
     }
 
     /// <summary>Combine sequences into owned lists and metadata, independently mutable from either input.</summary>
+    /// <remarks>Derived templates must insert a content-independent number of tokens. Encode counts that overhead on empty sequences and validates the final count.</remarks>
     public virtual TokenIdsWithSpecialTokens BuildInputWithSpecialTokens(TokenIdsWithOffsets inputTokens,
         TokenIdsWithOffsets? additionalInputTokens = null) => BuildInputCore(inputTokens, additionalInputTokens, takeOwnership: false);
 
@@ -177,11 +185,19 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
         .Replace(" ' ", "'").Replace(" n't", "n't").Replace(" 'm", "'m")
         .Replace(" 's", "'s").Replace(" 've", "'ve").Replace(" 're", "'re");
 
+    /// <summary>Split using this tokenizer's configured, cached literal vocabulary.</summary>
+    protected List<Token> SplitOnSpecialTokens(Token token) => SplitOnSpecialTokens(token, literalVocabulary, specialTokens);
+
     protected List<Token> SplitOnSpecialTokens(Token token, IVocab vocabulary)
     {
         if (token.Mask is Mask.Special or Mask.Unknown) return new() { token.Clone() };
-        var matcher = ReferenceEquals(vocabulary, vocab) ? specialTokens :
-            new LiteralTokenMatcher(vocabulary.SpecialValues.Select(p => (p.Key, p.Value)));
+        return SplitOnSpecialTokens(token, vocabulary, ReferenceEquals(vocabulary, literalVocabulary) ? specialTokens :
+            new LiteralTokenMatcher(vocabulary.SpecialValues.Select(p => (p.Key, p.Value))));
+    }
+
+    private static List<Token> SplitOnSpecialTokens(Token token, IVocab vocabulary, LiteralTokenMatcher matcher)
+    {
+        if (token.Mask is Mask.Special or Mask.Unknown) return new() { token.Clone() };
         var matches = matcher.FindMatches(token.Text);
         var references = token.TracksOffsets ? TokenAlignment.References(token) : null;
         var result = new List<Token>();
