@@ -1,46 +1,39 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0
 
-- Preserve unknown model identity through ID conversion and make effective-blank XLM-R inputs consistent after cleanup.
-- Add explicit model freezing and immutable piece inspection, release invalidated snapshots, and honor custom trie comparers.
-- Expose authoritative read-only per-scalar Node mappings with an owned reconstruction factory.
-- Enforce derived template counts and casing-copy contracts; reuse literal caches for value-type vocabularies.
-- Use occurrence-sized literal indexing, reject impossible literal budgets early, and guard matching work against a qualified quadratic mutant.
-- Remove repeated vocabulary/added-token validation, evaluate caller iterators outside locks, and strictly decode supported flat-file encodings.
-- Reject contradictory Gemma tagged alternatives and separate generic tests from model fixtures.
-- Track exact independent normalization origins; validate typed SourceLink coverage and ordinal generated-source equality with discriminating negative controls.
+### Compatibility and migration
 
-- Preserve paired stride ownership and Japanese punctuation masks; add discriminating continuation-mask goldens.
-- Replace long-prefix rescanning with shared failure-link matching while retaining unigram ties and live public trie edits.
-- Reject impossible XLM-R template limits early; transfer internal metadata and defer normalization maps until text changes.
-- Align typed/object Offset equality and raw segmentation UTF-16 policy; identify malformed escaped JSON strings by asset path.
-- Pin managed normalization, scalar casing and character properties to Unicode 15.1; qualify every scalar independently and run the official normalization conformance corpus offline.
-- Copy mutable template metadata and qualify full source-reference vectors, including composition and sequence B.
-- Reject extreme cumulative-score ranges and duplicate JSON vocabulary entries with explicit diagnostics.
-- Avoid rune boxing and unchanged preprocessing copies; share the Python reference model, separate independent Gemma tests and refresh DTO documentation.
-- Reject malformed tokenizer assets, duplicate token fields, misaligned template inputs and invalid predecessor chains with explicit diagnostics.
-- Preserve whitespace-only literal specials, qualify exact paired templates, and verify that package symbols match the shipped DLL.
-- Reduce model retention, prefix construction and metadata allocations; share loaded assets between casing configurations.
-- Clarify dictionary-only additions and unreleased installation, and expand independent performance workloads.
-- Target .NET 10 and use the XML solution format.
-- Verify NuGet consumption on .NET 10 and .NET 11 (initial qualification on RC3).
-- Keep the Google.Protobuf dependency floor and generated bindings at 3.33.5, verified by an isolated consumer pinned to that runtime.
-- Replace the package icon with a simpler tokenizer motif at 128×128.
-- Add local-file Gemma BPE encoding and right-padded batch inputs.
-- Qualify Gemma IDs against the pinned Python tokenizer.
-- Adopt explicit Release NuGet packaging with symbols, SourceLink, and a tokenizer-specific icon.
-- Add locked dependencies, offline XLM-R fixtures, and Windows/Linux CI.
-- Fix Unicode special-token scanning, invariant lowercase, decoding, normalization offsets, unknown runs, and clone ownership.
-- Make vocabulary views read-only, copy construction inputs, preserve IDs across repeated additions, and validate mapping JSON.
-- Implement the generic tokenizer interface and supplied-vocabulary file constructors; consolidate aligned truncation.
-- Parse XLM-R protobufs once, reject unsupported model settings, and remove quadratic suffix allocations.
-- Recognize literal tokens in one pass and reject impossible Gemma limits before allocating BPE state.
-- Consolidate and pin protobuf generation; refresh SDK/dependencies and enforce warning-free builds.
-- Allow stable .NET 10 SDK feature-band roll-forward and install the latest 10.0.x in CI.
-- Skip Markdown-only CI changes, pack explicitly, and keep CI packages under artifacts/dev/nuget/.
-- Add offline fixture integrity checks, malformed-asset regressions, independent XLM-R qualification, and reproducible benchmarks.
-- Deprecate legacy character tables and unused exceptions while retaining their public compatibility surface.
+- Target .NET 10; .NET 11 applications can consume the same `net10.0` assembly.
+- Change `IVocab` and vocabulary dictionaries to `IReadOnlyDictionary`, copy construction inputs and special-token configuration, and require controlled dictionary additions. Update custom `IVocab` implementations accordingly.
+- Make `Node.ScalarReferences` the authoritative read-only source mapping. `ReferenceOffsets` returns a copy; use `Node.FromScalarReferences` to reconstruct mappings that include composition or expansion.
+- Require derived templates to insert a content-independent number of tokens and derived XLM-R tokenizers to override `WithLowerCase` when preserving additional behavior.
+- Reject malformed UTF-16, invalid tokenizer assets, unsupported model profiles and malformed flat-file byte sequences explicitly. Flat files support strict UTF-8 and BOM-identified UTF-8, UTF-16 and UTF-32.
+- Retain callable tokenizer constructors and deprecate legacy public character tables and unused exception types for compatibility.
+
+### Added
+
+- Managed Gemma BPE encoding from local `tokenizer.json` assets, with literal added tokens, UTF-8 byte fallback, optional BOS/EOS and right-padded batch inputs with attention masks.
+- Managed Unicode 15.1 normalization, default scalar casing and character properties, independent of host ICU/NLS and SDK Unicode updates.
+- Complete source-position mappings through normalization, including composition, expansion, reordering, supplementary scalars and paired inputs.
+- Shared XLM-R vocabulary/model instances through casing variants, immutable piece inspection through `EnumeratePieces`, and explicit owned model snapshots through `Freeze`/`IsFrozen`.
+- Generic tokenizer interface support and supplied-vocabulary file constructors.
+
+### Fixed and improved
+
+- Preserve unknown model IDs independently of diagnostic text and dictionary additions. Apply consistent empty-input behavior after cleanup while recognizing literal specials before normalization.
+- Correct Unicode literal matching, invariant casing, SentencePiece decoding, unknown runs, Japanese punctuation masks, continuation masks and typed/object `Offset` equality.
+- Keep paired truncation, stride ownership, overflow order and all parallel metadata aligned. Public template builders and cloned tokens own their mutable metadata.
+- Preserve vocabulary IDs and inverse views across idempotent additions. Evaluate caller iterators outside mutation locks and retain exception/overflow atomicity.
+- Replace repeated prefix scans with shared failure-link matching, bound sparse literal indexing by occurrences, reject impossible token budgets early and reduce model/metadata allocations and retention. Custom trie comparers retain their lookup semantics.
+- Validate Gemma tagged alternatives, duplicate vocabulary entries, special-token mappings, predecessor chains and cumulative score ranges with contextual diagnostics.
+
+### Packaging and qualification
+
+- Keep the Google.Protobuf dependency floor and generated bindings at 3.33.5; verify isolated .NET 10 and .NET 11 consumers explicitly pinned to that runtime.
+- Ship explicit Release packages, portable symbols, typed SourceLink mappings, XML API documentation, a 128×128 icon, release notes and Unicode data licensing.
+- Verify offline fixture integrity, the official Unicode normalization corpus, independent Gemma/XLM-R results, exhaustive Unicode scalars, matching-work budgets and symbol/generation negative controls in Windows/Ubuntu CI.
+- Use a stable .NET 10 SDK with feature-band roll-forward, locked dependencies and warning-free builds. Keep CI development packages separate from release artifacts.
 
 ## 0.1.1
 

@@ -9,7 +9,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>See CHANGELOG.md for release details.</PackageReleaseNotes>
+    <PackageReleaseNotes>Adds managed Gemma BPE encoding and padded batches, pinned Unicode 15.1 XLM-R processing, complete source mappings, and model freezing. Targets .NET 10 with .NET 11 consumer compatibility. Breaking changes include read-only IVocab dictionaries and Node mappings, plus derived tokenizer template/copy contracts. Requires Google.Protobuf 3.33.5 or later. See CHANGELOG.md for migration details.</PackageReleaseNotes>
     <PackageTags>tokenization;nlp;embedding;gemma;sentencepiece;xlm-roberta</PackageTags>
     <PackageProjectUrl>https://github.com/Lokad/Tokenizers</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Lokad/Tokenizers</RepositoryUrl>

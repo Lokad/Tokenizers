@@ -4,10 +4,10 @@ Lokad.Tokenizers provides managed Gemma BPE and XLM-R text encoding on .NET 10 a
 
 ## Installation
 
-The examples on this branch describe the **unreleased 0.2 API**. Installing the published package below provides the stable release; Gemma and the new vocabulary contracts require a local 0.2 package from this checkout. Build it with the Contributing commands, add `artifacts/nuget/` as a feed alongside nuget.org in the consuming project, and select version `0.2.0`. The package smoke script demonstrates a complete isolated restore and consumer.
+Install Lokad.Tokenizers 0.2.0 in a .NET 10 or .NET 11 project:
 
 ```powershell
-Install-Package Lokad.Tokenizers
+dotnet add package Lokad.Tokenizers --version 0.2.0
 ```
 
 ## Usage
@@ -74,9 +74,9 @@ $taskPython = if ($IsWindows) { "artifacts/python/Scripts/python.exe" } else { "
 ./eng/test-unicode.ps1 -Python $taskPython
 ```
 
-Gemma qualification checks 754 single-sequence cases with and without automatic special tokens and 108 padded batches. XLM-R qualification checks 362 legacy/Unicode cases, including lowercase, complete source spans and full reference-position lists. Its modes share one Rust model; Python's explicitly versioned Unicode implementation supplies independent normalization/casing and exact provenance through decomposition, canonical ordering and composition. Origin goldens and cleanup-insertion checks run before segmentation so unknown fusion cannot hide mapping errors. Exhaustive qualification compares all 1,112,064 Unicode scalars for casing, character properties and four normalization forms. The reference producers load no managed code. Results remain under ignored `artifacts/gemma/`, `artifacts/xlm/` and `artifacts/unicode/`. [Fixture provenance and regeneration](test/Fixture/README.md) describe the pinned model and legacy expectations.
+Gemma qualification checks 754 single-sequence cases with and without automatic special tokens and 108 padded batches. XLM-R qualification checks 362 legacy/Unicode cases, including lowercase, complete source spans and full reference-position lists. Its modes share one Rust model; Python's explicitly versioned Unicode implementation supplies independent normalization/casing and exact provenance through decomposition, canonical ordering and composition. Origin goldens and cleanup-insertion checks run before segmentation so unknown fusion cannot hide mapping errors. Exhaustive qualification compares all 1,112,064 Unicode scalars for casing, character properties and four normalization forms. The reference producers load no managed code. Results remain under ignored `artifacts/gemma/`, `artifacts/xlm/` and `artifacts/unicode/`. [Fixture provenance and regeneration](https://github.com/Lokad/Tokenizers/blob/master/test/Fixture/README.md) describe the pinned model and legacy expectations.
 
-Generate the compact managed Unicode tables and official offline normalization corpus with `python eng/generate-unicode.py`; use `--check` for verification. The script downloads a checksum-pinned Unicode 15.1 archive, and the package includes the Unicode data license. [Unicode data provenance](src/Unicode/README.md) records the format and qualification policy.
+Generate the compact managed Unicode tables and official offline normalization corpus with `python eng/generate-unicode.py`; use `--check` for verification. The script downloads a checksum-pinned Unicode 15.1 archive, and the package includes the Unicode data license. [Unicode data provenance](https://github.com/Lokad/Tokenizers/blob/master/src/Unicode/README.md) records the format and qualification policy.
 
 Generate protobuf bindings from the single schema with `./eng/generate-protobuf.ps1`. Pass `-Check` to verify the checked-in output using a pinned compiler and checksum. `./eng/test-protobuf-generation.ps1` verifies newline tolerance and rejects invisible descriptor corruption through the actual checker. Both the compiler and the minimum Google.Protobuf runtime version are 3.33.5. Run the allocation and special-token benchmark with:
 
@@ -99,11 +99,18 @@ The Windows/Ubuntu CI workflow skips Markdown-only changes and runs locked resto
 
 ## API compatibility
 
-The unreleased 0.2 release changes `IVocab`/vocabulary dictionary properties to `IReadOnlyDictionary` and returns a copied special-token configuration. Update custom implementations and use controlled additions instead of mutating dictionary views. Invalid or unsupported mappings now fail during loading. Existing callable tokenizer constructors remain available. Legacy public character tables and unused exception types are deprecated for compatibility; encoders no longer depend on their mutable tables.
+Version 0.2.0 requires .NET 10 or .NET 11 and changes several contracts from 0.1.x:
+
+- `IVocab` and vocabulary dictionary properties use `IReadOnlyDictionary`; special-token configuration is returned as a copy. Update custom implementations and use `AddTokens`/`AddExtraIds` for controlled dictionary additions.
+- `Node.ScalarReferences` is the authoritative read-only source mapping. `Node.ReferenceOffsets` returns a copy; use `Node.FromScalarReferences` to reconstruct many-to-one or expanding mappings.
+- Derived templates must insert a content-independent number of tokens. Derived XLM-R encoders must override `WithLowerCase` to retain their behavior when creating a casing variant.
+- Malformed UTF-16, malformed flat-file bytes, and invalid or unsupported tokenizer assets fail explicitly.
+
+Existing callable tokenizer constructors remain available. Legacy public character tables and unused exception types are deprecated for compatibility; encoders no longer depend on their mutable tables. See [CHANGELOG.md](https://github.com/Lokad/Tokenizers/blob/master/CHANGELOG.md) for the release summary.
 
 ## License
 
-BSD 3-Clause; see [LICENSE.txt](LICENSE.txt).
+BSD 3-Clause; see [LICENSE.txt](https://github.com/Lokad/Tokenizers/blob/master/LICENSE.txt).
 
 ## References
 
