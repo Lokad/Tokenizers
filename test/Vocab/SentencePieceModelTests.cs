@@ -266,17 +266,7 @@ public sealed class SentencePieceModelTests
         Assert.True(large < 8_000_000, $"Unexpected allocation volume: {large}");
     }
 
-    static readonly Lazy<ModelProto> Template = new(() => VocabHelper.OpenProtobufFile(TestUtils.XlmRobertaFixture()));
-
-    static ModelProto Tiny()
-    {
-        var model = new ModelProto { TrainerSpec = Template.Value.TrainerSpec.Clone(), NormalizerSpec = Template.Value.NormalizerSpec.Clone() };
-        model.Pieces.Add(Template.Value.Pieces.Take(3).Select(p => p.Clone()));
-        model.Pieces.Add(new ModelProto.Types.SentencePiece { Piece = "a", Score = -1 });
-        model.Pieces.Add(new ModelProto.Types.SentencePiece { Piece = "aa", Score = -0.5f });
-        model.TrainerSpec.VocabSize = model.Pieces.Count;
-        return model;
-    }
+    static ModelProto Tiny() => UnigramFixture.Model(("a",-1),("aa",-0.5f));
 
     [Theory]
     [InlineData("bpe")]
