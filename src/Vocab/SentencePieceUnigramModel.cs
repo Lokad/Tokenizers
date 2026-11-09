@@ -175,15 +175,14 @@ public class SentencePieceModel
         return new(runes, scores, starts, pieces);
     }
 
-    private static Node Materialize(Path path, int end, uint[][]? references, bool includePositions = true)
+    private static Node Materialize(Path path, int end, uint[][]? references)
     {
         int start = path.Starts[end];
         if (start < 0 || start >= end || !float.IsFinite(path.Scores[end]))
             throw new InvalidDataException("Model has an invalid or unreachable predecessor");
         var piece = path.Pieces[end];
         var mapped = references?.AsSpan(start, end - start).ToArray();
-        return new Node(piece?.Text ?? path.Runes[start].ToString(), path.Scores[end], piece?.Index ?? 0,
-            start, end, mapped == null || !includePositions ? [] : TokenAlignment.SourcePositions(mapped)) { ScalarReferences = mapped };
+        return Node.Create(piece?.Text ?? path.Runes[start].ToString(), path.Scores[end], piece?.Index ?? 0, start, end, mapped ?? []);
     }
 
     internal List<Token> Tokenize(Token token)
@@ -191,7 +190,7 @@ public class SentencePieceModel
         var path = FindPredecessors(token.Text);
         var references = token.TracksOffsets ? TokenAlignment.References(token) : null;
         var nodes = new List<Node>();
-        for (int end = path.Runes.Length; end > 0; end = path.Starts[end]) nodes.Add(Materialize(path, end, references, includePositions: false));
+        for (int end = path.Runes.Length; end > 0; end = path.Starts[end]) nodes.Add(Materialize(path, end, references));
         nodes.Reverse();
         return ParseNodesToTokens(nodes, token.TracksOffsets);
     }
@@ -228,7 +227,7 @@ public class SentencePieceModel
                 var node = nodes[i++];
                 var piece = new Token(node.Text, trackOffsets);
                 if (trackOffsets) TokenAlignment.Set(piece, node.Text,
-                    node.ScalarReferences ?? node.ReferenceOffsets.Select(p => new[] { p }).ToArray());
+                    node.References);
                 result.Add(piece);
                 continue;
             }
@@ -238,7 +237,7 @@ public class SentencePieceModel
             {
                 Node node = nodes[i++];
                 text.Append(node.Text);
-                references?.AddRange(node.ScalarReferences ?? node.ReferenceOffsets.Select(p => new[] { p }).ToArray());
+                references?.AddRange(node.References);
             } while (i < nodes.Count && nodes[i].Index == 0);
             var token = new Token(text.ToString(), trackOffsets) { Mask = Mask.Unknown };
             if (references != null) TokenAlignment.Set(token, token.Text, references.ToArray());
