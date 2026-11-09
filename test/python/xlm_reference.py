@@ -74,27 +74,43 @@ def is_empty_input(text):
 
 
 def normalize_origins(text,start,lowercase):
-    """Independent prefix-diff alignment; normalization composes entire contributing source spans."""
-    prefix,normalized,mapping = "","",[]
+    """Track exact origins with Python UCD decomposition, canonical order and NFC pairs.
+
+    Python supplies both decomposition and composition; no managed tables/code are
+    loaded. Whole-string NFKC remains a separate text-normalization check.
+    """
+    ordered,marks = [],[]
     for index,character in enumerate(text,start):
         if character in SPACE:
             character = " "
         elif unicodedata.category(character) in ("Cc","Cf","Co") or character == "\ufffd":
             continue
-        prefix += character
-        updated = unicodedata.normalize("NFKC",prefix)
-        left = 0
-        while left < min(len(normalized),len(updated)) and normalized[left] == updated[left]:
-            left += 1
-        right = 0
-        while right < min(len(normalized)-left,len(updated)-left) and normalized[-1-right] == updated[-1-right]:
-            right += 1
-        old_end,new_end = len(normalized)-right,len(updated)-right
-        origins = {index}
-        for group in mapping[left:old_end]:
-            origins.update(group)
-        mapping = mapping[:left]+[origins.copy() for _ in range(left,new_end)]+(mapping[old_end:] if right else [])
-        normalized = updated
+        for part in unicodedata.normalize("NFKD",character):
+            unit = (part,{index})
+            if unicodedata.combining(part):
+                marks.append(unit)
+            else:
+                ordered.extend(sorted(marks,key=lambda item:unicodedata.combining(item[0])))
+                marks.clear()
+                ordered.append(unit)
+    ordered.extend(sorted(marks,key=lambda item:unicodedata.combining(item[0])))
+    composed,starter,previous = [],None,0
+    for character,origins in ordered:
+        combining = unicodedata.combining(character)
+        if starter is not None and (previous == 0 or previous < combining):
+            first,first_origins = composed[starter]
+            pair = unicodedata.normalize("NFC",first+character)
+            if len(pair) == 1:
+                composed[starter] = (pair,first_origins | origins)
+                continue
+        if combining == 0:
+            starter = len(composed)
+        composed.append((character,origins))
+        previous = combining
+    normalized = "".join(character for character,_ in composed)
+    if normalized != prepare(text,False):
+        raise ValueError("Origin tracking disagrees with independent whole-string NFKC")
+    mapping = [origins for _,origins in composed]
     if lowercase:
         lowered,new_mapping = "",[]
         for character,origins in zip(normalized,mapping):
@@ -152,7 +168,7 @@ def cases():
     edge = ["é<mask>","🧪<mask>é<mask>𩸽","🧪ABC","𩸽XYZ","I","İ","ﬁx","e\u0301x","가x","a\u0301\u0327z","Hello, world!","Café 東京!","\0a\u200bb","＜s＞","＜mask＞"]
     edge += ["㋿","\ua7cb","\U0001e030","\U0001ccf0","\u1c89","\U00010400","\ufffe","\uffff","\U0010ffff",
              "\u2028","a\u2028b","\u0085","\v\f","a\u200db","\U000f0000x","\ufdfa","e\u0301<mask>ﬁ🧪🧪"]
-    edge += [" "," \0","\0 ","\t\0"," \u200b","\ufeff "]
+    edge += [" "," \0","\0 ","\t\0"," \u200b","\ufeff ","q\u0f72\u0f75","q\u0f74\u0f73","ﬁ\u0301"]
     rng = random.Random(20261106)
     pieces = ["abc","XYZ"," ","  ","\t","é","e\u0301","ﬁ","🧪","東京","عربي","𩸽","I","İ","<mask>","<s>","\u00a0","\0"]
     edge.extend("".join(rng.choice(pieces) for _ in range(rng.randrange(40))) for _ in range(120))
