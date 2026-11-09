@@ -9,6 +9,7 @@
     <PackageReference Include="xunit.analyzers" PrivateAssets="All" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All" />
     <ProjectReference Include="../src/Lokad.Tokenizers.csproj" />
+    <Compile Include="../tools/PackageSmokeTest/PackageSymbols.cs" Link="Symbols/PackageSymbols.cs" />
     <None Update="Fixture/**/*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Unicode/*.gz" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

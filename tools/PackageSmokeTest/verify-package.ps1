@@ -74,6 +74,7 @@ $frameworks = $ConsumerFrameworks -join ';'
 </Project>
 "@ | Set-Content -LiteralPath (Join-Path $consumer 'Consumer.csproj') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Program.cs') -Destination (Join-Path $consumer 'Program.cs')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'PackageSymbols.cs') -Destination (Join-Path $consumer 'PackageSymbols.cs')
 $consumerProject = Join-Path $consumer 'Consumer.csproj'
 $cache = Join-Path $consumer 'packages'
 Push-Location $consumer
@@ -91,31 +92,20 @@ try {
         Write-Host "PASS $framework package consumer"
     }
 
-    # Keep a valid PDB and SourceLink payload, changing only its portable-PDB identity.
-    # A verifier that checks SourceLink alone would incorrectly accept this archive.
-    $mismatchedSymbols = Join-Path $consumer 'mismatched.snupkg'
-    Copy-Item -LiteralPath $symbols -Destination $mismatchedSymbols
-    $negativeArchive = [IO.Compression.ZipFile]::Open($mismatchedSymbols, [IO.Compression.ZipArchiveMode]::Update)
-    try {
-        $entry = $negativeArchive.GetEntry('lib/net10.0/Lokad.Tokenizers.pdb')
-        $pdbBytes = [byte[]]::new([int]$entry.Length)
-        $stream = $entry.Open()
-        try { $stream.ReadExactly($pdbBytes) } finally { $stream.Dispose() }
-        $memory = [IO.MemoryStream]::new($pdbBytes, $false)
-        $provider = [Reflection.Metadata.MetadataReaderProvider]::FromPortablePdbStream($memory)
-        try {
-            $identityOffset = $provider.GetMetadataReader([Reflection.Metadata.MetadataReaderOptions]::Default, $null).DebugMetadataHeader.IdStartOffset
-        } finally { $provider.Dispose(); $memory.Dispose() }
-        $pdbBytes[$identityOffset] = [byte]($pdbBytes[$identityOffset] -bxor 1)
-        $entry.Delete()
-        $stream = $negativeArchive.CreateEntry('lib/net10.0/Lokad.Tokenizers.pdb').Open()
-        try { $stream.Write($pdbBytes) } finally { $stream.Dispose() }
-    } finally { $negativeArchive.Dispose() }
-    $negativeOutput = (& $ConsumerDotNet (Join-Path $consumer "bin/Release/$($ConsumerFrameworks[0])/Consumer.dll") $version $Tokenizer $mismatchedSymbols $commit $legacy $protobufVersion 2>&1 | Out-String)
-    if ($LASTEXITCODE -eq 0 -or !$negativeOutput.Contains('Portable PDB identity does not match the packaged assembly')) {
-        throw "Mismatched symbols were not rejected by the identity check: $negativeOutput"
+    $consumerAssembly = Join-Path $consumer "bin/Release/$($ConsumerFrameworks[0])/Consumer.dll"
+    foreach ($control in @(
+        @{ Kind='identity'; Error='Portable PDB identity does not match the packaged assembly' },
+        @{ Kind='source-link-kind'; Error='Expected exactly one module SourceLink record' },
+        @{ Kind='source-link-map'; Error='SourceLink mapping does not cover PDB document' }
+    )) {
+        $mutant = Join-Path $consumer ($control.Kind + '.snupkg')
+        Invoke-Checked { & $ConsumerDotNet $consumerAssembly --mutate-symbols $symbols $mutant $control.Kind }
+        $negativeOutput = (& $ConsumerDotNet $consumerAssembly $version $Tokenizer $mutant $commit $legacy $protobufVersion 2>&1 | Out-String)
+        if ($LASTEXITCODE -eq 0 -or !$negativeOutput.Contains($control.Error, [StringComparison]::Ordinal)) {
+            throw "Symbol negative control failed ($($control.Kind)): $negativeOutput"
+        }
+        Write-Host "PASS $($control.Kind) symbols negative control"
     }
-    Write-Host 'PASS mismatched-symbols negative control'
 } finally { Pop-Location }
 Write-Host "PASS package contents, 128x128 icon, symbols, and consumers: $package"
 Write-Host "Consumer evidence: $consumer"

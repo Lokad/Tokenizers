@@ -1,10 +1,15 @@
 using System.IO.Compression;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
-using System.Text.Json;
+using Lokad.Tokenizers.Qualification;
 using Lokad.Tokenizers.Tokenizer;
 using Lokad.Tokenizers.Vocab;
 
+if (args.Length == 4 && args[0] == "--mutate-symbols")
+{
+    PackageSymbols.CreateMutant(args[1],args[2],args[3]);
+    return;
+}
 if (args.Length != 6) throw new ArgumentException("Expected version, tokenizer, symbol package, commit, XLM-R fixture, and Protobuf version");
 string version = args[0], commit = args[3];
 if (typeof(GemmaTokenizer).Assembly.GetName().Version?.ToString(3) != version)
@@ -24,21 +29,7 @@ var codeView = pe.ReadCodeViewDebugDirectoryData(codeViewEntry);
 var pdbId = new BlobContentId(reader.DebugMetadataHeader?.Id ?? throw new InvalidDataException("Missing portable PDB identity"));
 if (codeView.Guid != pdbId.Guid || codeViewEntry.Stamp != pdbId.Stamp || codeView.Age != 1)
     throw new InvalidDataException("Portable PDB identity does not match the packaged assembly");
-bool sourceLink = false;
-foreach (var handle in reader.CustomDebugInformation)
-{
-    byte[] blob = reader.GetBlobBytes(reader.GetCustomDebugInformation(handle).Value);
-    if (blob.Length == 0 || blob[0] != (byte)'{') continue;
-    try
-    {
-        using var json = JsonDocument.Parse(blob);
-        if (json.RootElement.TryGetProperty("documents", out var documents))
-            sourceLink |= documents.EnumerateObject().Any(p => p.Value.GetString()?.StartsWith(
-                "https://raw.githubusercontent.com/Lokad/Tokenizers/" + commit + "/", StringComparison.OrdinalIgnoreCase) == true);
-    }
-    catch (JsonException) { }
-}
-if (!sourceLink) throw new InvalidDataException("Portable PDB has no matching GitHub SourceLink mapping");
+PackageSymbols.ValidateSourceLink(reader,commit);
 
 var tokenizer = new GemmaTokenizer(args[1]);
 if (tokenizer.TokenizerSha256 != "4d777ef5bdc1aa36227abdfb77c3e49e7b9c892d16e1b6bda41c393504828be4")
