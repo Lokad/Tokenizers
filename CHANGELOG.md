@@ -2,6 +2,15 @@
 
 ## 0.2.0 (unreleased)
 
+- Preserve unknown model identity through ID conversion and make effective-blank XLM-R inputs consistent after cleanup.
+- Add explicit model freezing and immutable piece inspection, release invalidated snapshots, and honor custom trie comparers.
+- Expose authoritative read-only per-scalar Node mappings with an owned reconstruction factory.
+- Enforce derived template counts and casing-copy contracts; reuse literal caches for value-type vocabularies.
+- Use occurrence-sized literal indexing, reject impossible literal budgets early, and guard matching work against a qualified quadratic mutant.
+- Remove repeated vocabulary/added-token validation, evaluate caller iterators outside locks, and strictly decode supported flat-file encodings.
+- Reject contradictory Gemma tagged alternatives and separate generic tests from model fixtures.
+- Track exact independent normalization origins; validate typed SourceLink coverage and ordinal generated-source equality with discriminating negative controls.
+
 - Preserve paired stride ownership and Japanese punctuation masks; add discriminating continuation-mask goldens.
 - Replace long-prefix rescanning with shared failure-link matching while retaining unigram ties and live public trie edits.
 - Reject impossible XLM-R template limits early; transfer internal metadata and defer normalization maps until text changes.
