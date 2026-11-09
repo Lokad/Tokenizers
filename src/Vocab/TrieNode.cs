@@ -58,6 +58,9 @@ public class TrieNode
     }
 
     internal TrieNode? FindChild(Rune rune) => children?.GetValueOrDefault(rune);
+    internal bool HasCustomComparer => children != null && !ReferenceEquals(children.Comparer, EqualityComparer<Rune>.Default);
+    internal Dictionary<Rune, TrieNode>? ExistingChildren => children;
+    internal TrieNode CopyShallow() => new(text,prefixLength,Length) { Score=Score, Index=Index, End=End };
     internal IEnumerable<(int Symbol, TrieNode Child)> Edges => children == null ? [] : children.Select(p => (p.Key.Value, p.Value));
 
     internal TrieNode GetOrAddChild(Rune rune, string piece, int prefixEnd, int scalarLength)

@@ -9,14 +9,73 @@ namespace Lokad.Tokenizers.Vocab;
 public class SentencePieceModel
 {
     private TrieNode root = new("");
-    private PrefixMatcher<TrieNode>? matcher;
+    private sealed record CompiledModel(PrefixMatcher<TrieNode>? Ordinal, TrieNode? CustomRoot);
+    private CompiledModel? matcher;
     private readonly object matcherLock = new();
     private volatile bool externallyMutable;
     /// <summary>The mutable public trie. Obtaining it disables the shared compiled snapshot.</summary>
     public TrieNode Root
     {
-        get { externallyMutable = true; return root; }
-        set { root = value ?? throw new ArgumentNullException(nameof(value)); externallyMutable = true; }
+        get { ExposeMutableNodes(); return root; }
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            lock (matcherLock) { root=value; externallyMutable=true; matcher=null; }
+        }
+    }
+
+    private void ExposeMutableNodes()
+    {
+        lock (matcherLock) { externallyMutable=true; matcher=null; }
+    }
+
+    /// <summary>Whether segmentation can reuse a snapshot isolated from previously exposed mutable nodes.</summary>
+    public bool IsFrozen => !externallyMutable;
+
+    /// <summary>Inspect piece values without exposing mutable trie nodes or invalidating the cached matcher.</summary>
+    public IEnumerable<(string Text, float Score, long Index)> EnumeratePieces()
+    {
+        var pending=new Stack<TrieNode>();
+        var seen=new HashSet<TrieNode>(ReferenceEqualityComparer.Instance);
+        pending.Push(root);
+        while (pending.TryPop(out var node))
+        {
+            if (!seen.Add(node)) throw new ArgumentException("Trie nodes must form a tree without cycles or shared children");
+            if (node.End) yield return (node.Text,node.Score,node.Index);
+            if (node.ExistingChildren is { } children)
+                foreach (var child in children.Values) pending.Push(child);
+        }
+    }
+
+    /// <summary>Capture completed edits in an owned tree and reuse its compiled matcher for subsequent readers.</summary>
+    /// <remarks>Previously exposed nodes are detached. Obtaining Root or mutable prefix nodes starts a new editing phase. Do not freeze or edit during concurrent encoding.</remarks>
+    public void Freeze()
+    {
+        if (!externallyMutable) return;
+        var snapshot=CopyTree(root);
+        var compiled=CompileMatcher(snapshot);
+        lock (matcherLock) { root=snapshot; matcher=compiled; externallyMutable=false; }
+    }
+
+    private static TrieNode CopyTree(TrieNode source)
+    {
+        var snapshot=source.CopyShallow();
+        var pending=new Queue<(TrieNode Source, TrieNode Copy)>();
+        var seen=new HashSet<TrieNode>(ReferenceEqualityComparer.Instance) { source };
+        pending.Enqueue((source,snapshot));
+        while (pending.TryDequeue(out var pair))
+        {
+            if (pair.Source.ExistingChildren is not { } children) continue;
+            pair.Copy.Children=new(children.Count,children.Comparer);
+            foreach (var (rune,child) in children)
+            {
+                if (child == null || !seen.Add(child)) throw new ArgumentException("Trie nodes must form a tree without cycles or shared children");
+                var copy=child.CopyShallow();
+                pair.Copy.Children.Add(rune,copy);
+                pending.Enqueue((child,copy));
+            }
+        }
+        return snapshot;
     }
     private float unknownScore = -100;
     // Keep the existing float comparisons (and legacy tie-breaking) with ample
@@ -40,7 +99,7 @@ public class SentencePieceModel
         };
         for (int index = 3; index < proto.Pieces.Count; index++)
             model.Insert(proto.Pieces[index].Piece, proto.Pieces[index].Score, index);
-        model.matcher = model.CompileMatcher();
+        model.matcher = CompileMatcher(model.root);
         return model;
     }
 
@@ -104,7 +163,7 @@ public class SentencePieceModel
             node = child;
             if (node.End) result.Add(node);
         }
-        if (result.Count != 0) externallyMutable = true;
+        if (result.Count != 0) ExposeMutableNodes();
         return result;
     }
 
@@ -122,14 +181,24 @@ public class SentencePieceModel
 
     private readonly record struct Path(Rune[] Runes, float[] Scores, int[] Starts, TrieNode?[] Pieces);
 
-    private PrefixMatcher<TrieNode> CompileMatcher() => PrefixMatcher<TrieNode>.Create(root, n => n.Edges, n => (n.End, n));
+    private static CompiledModel CompileMatcher(TrieNode source)
+    {
+        bool custom=false;
+        var compiled=PrefixMatcher<TrieNode>.Create(source, n => {
+            custom |= n.HasCustomComparer;
+            return n.Edges;
+        }, n => (n.End,n));
+        // Arbitrary per-node equality predicates cannot be represented by integer
+        // failure links. Keep their dictionary semantics on the direct trie path.
+        return custom ? new(null,source) : new(compiled,null);
+    }
 
-    private PrefixMatcher<TrieNode> GetMatcher()
+    private CompiledModel GetMatcher()
     {
         // Dictionary mutations through the public trie cannot be intercepted. Callers
         // obtaining nodes retain live mutation semantics through a fresh snapshot.
-        if (externallyMutable) return CompileMatcher();
-        lock (matcherLock) return matcher ??= CompileMatcher();
+        if (externallyMutable) return CompileMatcher(root);
+        lock (matcherLock) return matcher ??= CompileMatcher(root);
     }
 
     private Path FindPredecessors(string text)
@@ -142,34 +211,50 @@ public class SentencePieceModel
         scores[0] = 0;
         if (runes.Length == 0) return new(runes, scores, starts, pieces);
         var matching = GetMatcher();
+        void Offer(int start, int end, TrieNode? node)
+        {
+            if (node != null && !IsSupportedScore(node.Score)) throw new InvalidDataException("Model piece score exceeds the supported cumulative score range");
+            float score=scores[start]+(node?.Score ?? unknownScore);
+            if (!float.IsFinite(score)) throw new InvalidDataException("Model cumulative score is not finite");
+            if (score <= scores[end]) return;
+            scores[end]=score; starts[end]=start; pieces[end]=node;
+        }
+        if (matching.CustomRoot is { } customRoot)
+        {
+            // The legacy start-major traversal honors each dictionary's comparer.
+            // Its work depends on input length and traversed prefix depth.
+            for (int start=0;start<runes.Length;start++)
+            {
+                var node=customRoot;
+                bool single=false;
+                for (int position=start;position<runes.Length;position++)
+                {
+                    node=node.FindChild(runes[position]);
+                    if (node == null) break;
+                    if (!node.End) continue;
+                    if (position == start) single=true;
+                    Offer(start,position+1,node);
+                }
+                if (!single) Offer(start,start+1,null);
+            }
+            return new(runes,scores,starts,pieces);
+        }
+        var ordinal=matching.Ordinal!;
         int state = 0;
         for (int end = 1; end <= runes.Length; end++)
         {
-            state = matching.Step(state, runes[end - 1].Value);
+            state = ordinal.Step(state, runes[end - 1].Value);
             bool single = false;
             // Earlier starts (longest pieces) win float ties, as in the original
             // start-major dynamic program. Unknown length-one edges are last.
-            for (int match = matching.FirstMatch(state); match != 0; match = matching.NextMatch(match))
+            for (int match = ordinal.FirstMatch(state); match != 0; match = ordinal.NextMatch(match))
             {
-                var node = matching.Value(match);
-                int length = matching.Length(match), start = end - length;
-                if (!IsSupportedScore(node.Score)) throw new InvalidDataException("Model piece score exceeds the supported cumulative score range");
+                var node = ordinal.Value(match);
+                int length = ordinal.Length(match), start = end - length;
                 if (length == 1) single = true;
-                float score = scores[start] + node.Score;
-                if (!float.IsFinite(score)) throw new InvalidDataException("Model cumulative score is not finite");
-                if (score > scores[end])
-                {
-                    scores[end] = score;
-                    starts[end] = start;
-                    pieces[end] = node;
-                }
+                Offer(start,end,node);
             }
-            if (!single && scores[end - 1] + unknownScore > scores[end])
-            {
-                scores[end] = scores[end - 1] + unknownScore;
-                starts[end] = end - 1;
-                pieces[end] = null;
-            }
+            if (!single) Offer(end-1,end,null);
             if (!float.IsFinite(scores[end])) throw new InvalidDataException("Model has an unreachable or non-finite segmentation path");
         }
         return new(runes, scores, starts, pieces);
