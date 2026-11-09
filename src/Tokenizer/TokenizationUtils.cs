@@ -24,6 +24,14 @@ internal static class TokenizationUtils
     }
 
     public static void Lowercase(Token token) => Transform(token, Operation.Lowercase);
+    private static bool IsRemovedByCleaning(Rune rune) => IsControl(rune) || rune.Value is 0 or 0xFFFD;
+
+    internal static bool IsEmptyAfterCleaning(string text)
+    {
+        foreach (Rune rune in text.EnumerateRunes())
+            if (!IsRemovedByCleaning(rune) && !UnicodeProfile.IsWhiteSpace(rune)) return false;
+        return true;
+    }
     internal static void ReplaceWhitespace(Token token) => Transform(token, Operation.Metaspace);
 
     public static void DecomposeNfkc(Token token) => TokenAlignment.Normalize(token, NormalizationForm.FormKC);
@@ -54,7 +62,7 @@ internal static class TokenizationUtils
         int index = 0, utf16 = 0;
         foreach (Rune scalar in token.Text.EnumerateRunes())
         {
-            bool remove = operation == Operation.Clean && (IsControl(scalar) || scalar.Value is 0 or 0xFFFD) ||
+            bool remove = operation == Operation.Clean && IsRemovedByCleaning(scalar) ||
                 operation == Operation.StripMarks && UnicodeProfile.IsNonSpacingMark(scalar);
             Rune replacement = operation == Operation.Clean && IsWhitespace(scalar) ? new Rune(' ') :
                 operation == Operation.Metaspace && IsWhitespace(scalar) ? new Rune(Metaspace) : scalar;

@@ -40,6 +40,9 @@ public class XLMRobertaTokenizer : BaseTokenizer<XlmRobertaVocab>
     /// <remarks>Finish vocabulary additions before encoding concurrently through either instance.</remarks>
     public XLMRobertaTokenizer WithLowerCase(bool lowerCase) => new(Vocab, model, lowerCase);
 
+    protected override bool IsEmptyInput(string text) => base.IsEmptyInput(text) ||
+        TokenizationUtils.IsEmptyAfterCleaning(text) && !ContainsSpecialToken(text);
+
     public override List<string> Tokenize(string text)
     {
         if (GetType() != typeof(XLMRobertaTokenizer)) return base.Tokenize(text);

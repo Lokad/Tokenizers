@@ -90,12 +90,13 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
 
     public void DecomposeNfkc(Token token) => TokenizationUtils.DecomposeNfkc(token);
 
-    protected bool IsEmptyInput(string text)
+    protected virtual bool IsEmptyInput(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
         UnicodeProfile.ValidateUtf16(text);
         return text.Length == 0 || UnicodeProfile.IsWhiteSpace(text) && !specialTokens.ContainsWhitespaceLiteral(text);
     }
+    protected bool ContainsSpecialToken(string text) => specialTokens.ContainsMatch(text);
     public List<long> ConvertTokensToIds(List<string> tokens) => tokens.Select(vocab.TokenToId).ToList();
 
     public TokenizedInput Encode(string inputText, string? additionalInputText, int maxLen,
@@ -118,7 +119,7 @@ public class BaseTokenizer<T> : ITokenizer<T> where T : IVocab
             foreach (Token token in TokenizeToTokens(new Token(text)))
             {
                 var positions = TokenAlignment.SourcePositionList(token);
-                result.Ids.Add(vocab.TokenToId(token.Text));
+                result.Ids.Add(vocab.TokenToId(token.Mask == Mask.Unknown ? vocab.GetUnknownValue() : token.Text));
                 result.Offsets.Add(positions.Count == 0 ? null : new Offset(positions.Min(), checked(positions.Max() + 1)));
                 result.ReferenceOffsets.Add(positions);
                 result.Masks.Add(token.Mask);

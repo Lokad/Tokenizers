@@ -63,6 +63,11 @@ internal sealed class LiteralTokenMatcher
     internal bool ContainsWhitespaceLiteral(string text)
     {
         if (!HasWhitespaceLiterals) return false;
+        return ContainsMatch(text);
+    }
+
+    internal bool ContainsMatch(string text)
+    {
         int state = 0;
         for (int i = text.Length - 1; i >= 0; i--)
         {

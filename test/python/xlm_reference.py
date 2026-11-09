@@ -67,6 +67,12 @@ def prepare(text,lowercase):
     return "".join(c.lower() for c in normalized) if lowercase else normalized
 
 
+def is_empty_input(text):
+    # The standard literal names survive cleaning. Only whole-input blankness
+    # is special; ordinary chunks around actual content keep their whitespace.
+    return all(c in ALL_SPACE for c in prepare(text,False))
+
+
 def normalize_origins(text,start,lowercase):
     """Independent prefix-diff alignment; normalization composes entire contributing source spans."""
     prefix,normalized,mapping = "","",[]
@@ -100,7 +106,7 @@ def normalize_origins(text,start,lowercase):
 
 def coverage_offsets(data,text,lowercase,maximum):
     ids,offsets,references = [],[],[]
-    if all(c in ALL_SPACE for c in text):
+    if is_empty_input(text):
         return [0,2],[None,None],[[],[]]
     for position,end,literal in chunks(text):
         if literal:
@@ -122,7 +128,7 @@ def coverage_offsets(data,text,lowercase,maximum):
 
 def encode(data,text,maximum,lowercase=False):
     ids=[]
-    if not all(c in ALL_SPACE for c in text):
+    if not is_empty_input(text):
         for start,end,literal in chunks(text):
             if literal:
                 ids.append(data.literals[text[start:end]])
@@ -146,6 +152,7 @@ def cases():
     edge = ["é<mask>","🧪<mask>é<mask>𩸽","🧪ABC","𩸽XYZ","I","İ","ﬁx","e\u0301x","가x","a\u0301\u0327z","Hello, world!","Café 東京!","\0a\u200bb","＜s＞","＜mask＞"]
     edge += ["㋿","\ua7cb","\U0001e030","\U0001ccf0","\u1c89","\U00010400","\ufffe","\uffff","\U0010ffff",
              "\u2028","a\u2028b","\u0085","\v\f","a\u200db","\U000f0000x","\ufdfa","e\u0301<mask>ﬁ🧪🧪"]
+    edge += [" "," \0","\0 ","\t\0"," \u200b","\ufeff "]
     rng = random.Random(20261106)
     pieces = ["abc","XYZ"," ","  ","\t","é","e\u0301","ﬁ","🧪","東京","عربي","𩸽","I","İ","<mask>","<s>","\u00a0","\0"]
     edge.extend("".join(rng.choice(pieces) for _ in range(rng.randrange(40))) for _ in range(120))
