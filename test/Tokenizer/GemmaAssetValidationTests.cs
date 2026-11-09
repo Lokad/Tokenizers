@@ -7,6 +7,23 @@ namespace Lokad.Tokenizers.Tests.Tokenizer;
 public sealed class GemmaAssetValidationTests
 {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TaggedUnionsRejectContradictoryAlternatives(bool template)
+    {
+        var json = JsonNode.Parse(GemmaTokenizerTests.FixtureJson())!;
+        string expected;
+        if (template)
+        {
+            json["post_processor"]!["single"]![0]!["Sequence"] = new JsonObject { ["id"]="B", ["type_id"]=0 };
+            expected = "post_processor.single[]";
+        }
+        else { json["normalizer"]!["pattern"]!["Regex"] = "."; expected = "normalizer.pattern"; }
+        WithAsset(json, path => Assert.Contains(expected, Assert.Throws<InvalidDataException>(() => new GemmaTokenizer(path)).Message));
+        Assert.Equal(new long[] { 2,10,13,11,1 }, GemmaTokenizerTests.Create().Encode("a b"));
+    }
+
+    [Theory]
     [InlineData("\"version\":\"1.0\"", "\"version\":\"\\uD800\"", "tokenizer.version")]
     [InlineData("\"version\":\"1.0\"", "\"\\uD800\":\"1.0\"", "tokenizer")]
     [InlineData("\"vocab\":{", "\"vocab\":{\"\\uD800\":999,", "model.vocab")]

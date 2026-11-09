@@ -80,6 +80,7 @@ public sealed class GemmaTokenizer
                 throw new InvalidDataException("Invalid or duplicate model.merges entry: " + left + " + " + right);
         }
         var added = new List<(string Text, int Id)>();
+        var addedNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var entry in JsonAsset.Array(JsonAsset.Required(root, "added_tokens", "tokenizer"), "added_tokens").EnumerateArray())
         {
             var token = JsonAsset.Object(entry, "added_tokens[]");
@@ -88,7 +89,7 @@ public sealed class GemmaTokenizer
                 JsonAsset.Bool(token, "special", "added_tokens[]"), "added-token flags");
             string text = JsonAsset.String(token, "content", "added_tokens[]");
             int id = JsonAsset.Int(JsonAsset.Required(token, "id", "added_tokens[]"), "added_tokens[].id");
-            if (!vocabulary.TryGetValue(text, out int actual) || actual != id || added.Any(t => t.Text == text))
+            if (!vocabulary.TryGetValue(text, out int actual) || actual != id || !addedNames.Add(text))
                 throw new InvalidDataException("Invalid added_tokens[].content/id: " + text);
             added.Add((text, id));
         }
@@ -113,14 +114,25 @@ public sealed class GemmaTokenizer
     static bool TemplateToken(JsonElement element, string kind, string id)
     {
         JsonAsset.Object(element, "post_processor.single[]");
+        RequireSingleTag(element, "post_processor.single[]");
         if (!element.TryGetProperty(kind, out var value)) return false;
         var token = JsonAsset.Object(value, "post_processor.single[]");
         return JsonAsset.String(token, "id", "post_processor.single[]") == id &&
             JsonAsset.Int(JsonAsset.Required(token, "type_id", "post_processor.single[]"), "post_processor.single[].type_id") == 0;
     }
 
-    static string Pattern(JsonElement element, string path) => JsonAsset.String(
-        JsonAsset.Object(JsonAsset.Required(element, "pattern", path), path + ".pattern"), "String", path + ".pattern");
+    static string Pattern(JsonElement element, string path)
+    {
+        var pattern = JsonAsset.Object(JsonAsset.Required(element, "pattern", path), path + ".pattern");
+        RequireSingleTag(pattern, path + ".pattern");
+        return JsonAsset.String(pattern, "String", path + ".pattern");
+    }
+
+    static void RequireSingleTag(JsonElement value, string path)
+    {
+        if (value.EnumerateObject().Count() != 1)
+            throw new InvalidDataException("Tokenizer tagged value " + path + " must contain exactly one alternative");
+    }
 
     static bool IsNull(JsonElement element, string property, string path) => JsonAsset.Required(element, property, path).ValueKind == JsonValueKind.Null;
 
