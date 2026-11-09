@@ -153,6 +153,9 @@ public sealed class GemmaTokenizer
         var result = new List<long>();
         if (addSpecialTokens) result.Add(2);
         int contentLimit = maximumTokens - (addSpecialTokens ? 1 : 0);
+        // Every nonempty input contributes at least one piece, including a
+        // literal special. Check before scanning or indexing literal matches.
+        if (text.Length != 0 && result.Count >= contentLimit) ThrowTokenLimit();
         int start = 0, position = 0;
         long ordinaryBytes = 0;
         var matches = addedTokens.FindMatches(text);

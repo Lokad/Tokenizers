@@ -181,6 +181,32 @@ public sealed class GemmaTokenizerTests
     }
 
     [Fact]
+    public void ActualLiteralsCannotAllocatePastAnAlreadyImpossibleBudget()
+    {
+        var tokenizer=Create();
+        string text="<mask>"+new string('a',200_000);
+        Assert.Throws<ArgumentException>(()=>tokenizer.EncodeBatch([text],2));
+        long before=GC.GetAllocatedBytesForCurrentThread();
+        Assert.Throws<ArgumentException>(()=>tokenizer.EncodeBatch([text],2));
+        Assert.True(GC.GetAllocatedBytesForCurrentThread()-before < 16_384);
+        Assert.Equal(new long[] { 2,1 },tokenizer.EncodeBatch([""],2).InputIds);
+        Assert.Equal(new long[] { 2,4,1 },tokenizer.EncodeBatch(["<mask>"],3).InputIds);
+        string literal = "<long-"+new string('a',4096)+">";
+        var json = JsonNode.Parse(FixtureJson())!;
+        json["model"]!["vocab"]![literal] = 500;
+        json["added_tokens"]!.AsArray().Add(new JsonObject {
+            ["content"]=literal,["id"]=500,["single_word"]=false,["lstrip"]=false,
+            ["rstrip"]=false,["normalized"]=false,["special"]=true
+        });
+        string path=Path.GetTempFileName();
+        try {
+            File.WriteAllText(path,json.ToJsonString());
+            Assert.Equal(new long[] { 2,500,1 },new GemmaTokenizer(path).EncodeBatch([literal],3).InputIds);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public void AddedTokenMatchingIsLongestAndBypassesSpaceNormalization()
     {
         var json = JsonNode.Parse(FixtureJson())!;

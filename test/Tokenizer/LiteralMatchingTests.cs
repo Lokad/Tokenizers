@@ -5,6 +5,43 @@ namespace Lokad.Tokenizers.Tests.Tokenizer;
 
 public sealed class LiteralMatchingTests
 {
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(4000)]
+    public void MatchingWorkIsBoundedIndependentlyOfCorrectOutputs(int length)
+    {
+        string prefix = new('a',length);
+        var matcher = new LiteralTokenMatcher([(prefix+"b",7L)]);
+        var miss = matcher.FindMatches(prefix,out long missWork);
+        Assert.False(matcher.TryMatch(miss,0,out _));
+        Assert.InRange(missWork,0,2L*prefix.Length);
+        string exact = prefix+"b"+prefix;
+        var hit = matcher.FindMatches(exact,out long hitWork);
+        Assert.True(matcher.TryMatch(hit,0,out var token));
+        Assert.Equal(7,token.Id);
+        Assert.InRange(hitWork,0,2L*exact.Length);
+        var supplementary = new LiteralTokenMatcher([("🧪a",8L)]);
+        string unicode = string.Concat(Enumerable.Repeat("🧪a",length));
+        var matches = supplementary.FindMatches(unicode,out long unicodeWork);
+        Assert.True(supplementary.TryMatch(matches,unicode.Length-3,out _));
+        Assert.InRange(unicodeWork,0,2L*unicode.Length);
+    }
+
+    [Fact]
+    public void SparseLiteralOccurrencesAvoidInputSizedTemporaryArrays()
+    {
+        var matcher = new LiteralTokenMatcher([("<mask>",7L)]);
+        string text = "<mask>"+new string('a',200_000);
+        matcher.FindMatches(text);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        var matches = matcher.FindMatches(text);
+        long allocated = GC.GetAllocatedBytesForCurrentThread()-before;
+        Assert.True(allocated < 16_384,$"Sparse matching allocated {allocated} bytes");
+        Assert.True(matcher.TryMatch(matches,0,out var found));
+        Assert.Equal(7,found.Id);
+        Assert.False(matcher.TryMatch(matches,text.Length-1,out _));
+    }
+
     [Fact]
     public void GreedyLiteralMatchesAgreeWithAnIndependentOrdinalSearch()
     {

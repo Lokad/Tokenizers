@@ -69,10 +69,15 @@ internal sealed class PrefixMatcher<T>
         return -1;
     }
 
-    internal int Step(int state, int symbol)
+    internal int Step(int state, int symbol) => Step(state, symbol, out _);
+
+    // Counts attempted transitions, including failures, on the actual scan path.
+    internal int Step(int state, int symbol, out int work)
     {
+        work = 0;
         while (true)
         {
+            work++;
             int child = Child(state, symbol);
             if (child >= 0) return child;
             if (state == 0) return 0;
