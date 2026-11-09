@@ -53,8 +53,8 @@ internal static class PackageSymbols
         File.Copy(source,destination,true);
         using var archive=ZipFile.Open(destination,ZipArchiveMode.Update);
         var entry=archive.GetEntry("lib/net10.0/Lokad.Tokenizers.pdb") ?? throw new InvalidDataException("Missing PDB");
-        byte[] bytes;
-        using (var stream=entry.Open()) { bytes=new byte[checked((int)entry.Length)]; stream.ReadExactly(bytes); }
+        byte[] bytes=new byte[checked((int)entry.Length)];
+        using (var stream=entry.Open()) stream.ReadExactly(bytes);
         using (var stream=new MemoryStream(bytes,false))
         using (var provider=MetadataReaderProvider.FromPortablePdbStream(stream))
         {

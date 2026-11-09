@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.IO.Compression;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
@@ -42,5 +43,34 @@ public sealed class SourceLinkTests
         var reader=provider.GetMetadataReader();
         PackageSymbols.ValidateSourceLink(reader,Commit);
         Assert.Contains("expected repository commit",Assert.Throws<InvalidDataException>(()=>PackageSymbols.ValidateSourceLink(reader,new string('a',40))).Message);
+    }
+
+    [Theory]
+    [InlineData("identity")]
+    [InlineData("source-link-kind")]
+    [InlineData("source-link-map")]
+    public void RealArchiveMutationsReachTheirIntendedMetadataGate(string mutation)
+    {
+        string source=Path.GetTempFileName(),destination=Path.GetTempFileName();
+        try
+        {
+            byte[] data=Pdb(PackageSymbols.SourceLinkKind,true,"/_/*");
+            using (var archive=ZipFile.Open(source,ZipArchiveMode.Update))
+            using (var stream=archive.CreateEntry("lib/net10.0/Lokad.Tokenizers.pdb").Open()) stream.Write(data);
+            PackageSymbols.CreateMutant(source,destination,mutation);
+            using var original=MetadataReaderProvider.FromPortablePdbStream(new MemoryStream(data));
+            using var mutant=ZipFile.OpenRead(destination);
+            using var bytes=new MemoryStream();
+            using (var stream=mutant.GetEntry("lib/net10.0/Lokad.Tokenizers.pdb")!.Open()) stream.CopyTo(bytes);
+            bytes.Position=0;
+            using var altered=MetadataReaderProvider.FromPortablePdbStream(bytes);
+            var reader=altered.GetMetadataReader();
+            bool sameIdentity=original.GetMetadataReader().DebugMetadataHeader!.Id.SequenceEqual(reader.DebugMetadataHeader!.Id);
+            Assert.Equal(mutation != "identity",sameIdentity);
+            if (mutation == "identity") PackageSymbols.ValidateSourceLink(reader,Commit);
+            else Assert.Contains(mutation == "source-link-kind" ? "module SourceLink record" : "does not cover PDB document",
+                Assert.Throws<InvalidDataException>(()=>PackageSymbols.ValidateSourceLink(reader,Commit)).Message);
+        }
+        finally { File.Delete(source); File.Delete(destination); }
     }
 }
