@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.2.0
+## 0.2.0 — 2026-11-09
+
+Published on [nuget.org](https://www.nuget.org/packages/Lokad.Tokenizers/0.2.0). The package was built from commit [514d583](https://github.com/Lokad/Tokenizers/commit/514d583f3226da21ee457402cbc4650ece2d82fa); tag [v0.2.0](https://github.com/Lokad/Tokenizers/tree/v0.2.0) identifies that exact source.
 
 ### Compatibility and migration
 
